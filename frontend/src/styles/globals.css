@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
+
+html, body {
+  background-color: #F3E9D2;
+  color: #0d1b2a;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, .font-serif {
+  font-family: 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-white font-semibold shadow-card hover:bg-primary-dark transition;
+  }
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-2 text-primary font-semibold hover:brightness-95 transition;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/30 px-4 py-2 text-primary font-medium hover:bg-primary/5 transition;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border-2 border-primary/40 bg-white px-4 py-2 text-primary font-medium hover:bg-primary/5 transition cursor-pointer;
+  }
+  .chip-selected {
+    @apply chip bg-primary text-white border-primary;
+  }
+  .card {
+    @apply rounded-2xl bg-white p-5 shadow-card;
+  }
+  .card-surface {
+    @apply rounded-2xl bg-surface/60 p-5;
+  }
+  .pill-yellow {
+    @apply inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 font-semibold text-ink;
+  }
+  .input {
+    @apply w-full rounded-xl border border-primary/20 bg-white px-4 py-3 text-ink focus:outline-none focus:border-primary transition;
+  }
+  .sage-bubble {
+    @apply rounded-2xl bg-surface px-4 py-3 text-ink;
+  }
+  .user-bubble {
+    @apply rounded-2xl bg-white px-4 py-3 text-ink shadow-card;
+  }
+}
