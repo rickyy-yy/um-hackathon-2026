@@ -1,4 +1,4 @@
-# Kira2 Je — Streamlit
+# Kira2Lah — Streamlit
 
 Read-only visualization app, embedded inside the Next.js dashboard via
 iframe. Expects the following query params:
@@ -15,4 +15,4 @@ Two modes:
 1. **Ringkasan Bulan** — revenue vs COGS vs profit bars, payment-method pie.
 2. **Per Menu** — metric cards + trend lines across previous reports.
 
-All charts honour the Kira2 Je palette via `utils/theme.py`.
+All charts honour the Kira2Lah palette via `utils/theme.py`.

@@ -13,11 +13,17 @@ from app.core.database import Base
 
 class SalesRecord(Base):
     __tablename__ = "sales_records"
-    __table_args__ = (Index("idx_sales_user_date", "user_id", "sale_date"),)
+    __table_args__ = (Index("idx_sales_shop_date", "shop_id", "sale_date"),)
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    shop_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=True
+    )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("guest_sessions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     menu_item_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

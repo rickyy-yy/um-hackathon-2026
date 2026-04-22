@@ -13,11 +13,17 @@ from app.core.database import Base
 
 class MenuItem(Base):
     __tablename__ = "menu_items"
-    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_menu_item_user_name"),)
+    __table_args__ = (UniqueConstraint("shop_id", "name", name="uq_menu_item_shop_name"),)
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    shop_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("guest_sessions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)

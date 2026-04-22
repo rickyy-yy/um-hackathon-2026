@@ -1,6 +1,6 @@
 """Z.ai GLM client wrapper.
 
-Every analytical feature in Kira2 Je routes through this service. We use
+Every analytical feature in Kira2Lah routes through this service. We use
 OpenAI's Python SDK with a custom ``base_url`` pointing at Z.ai's OpenAI-
 compatible endpoint, as specified in the PRD.
 
@@ -35,7 +35,7 @@ def get_client() -> OpenAI:
     if _client is None:
         if not settings.zai_api_key:
             raise AIUnavailableError(
-                "ZAI_API_KEY is not configured. Kira2 Je requires Z.ai GLM to function."
+                "ZAI_API_KEY is not configured. Kira2Lah requires Z.ai GLM to function."
             )
         _client = OpenAI(api_key=settings.zai_api_key, base_url=settings.zai_base_url)
     return _client

@@ -13,11 +13,19 @@ from app.core.database import Base
 
 class Report(Base):
     __tablename__ = "reports"
-    __table_args__ = (Index("idx_reports_user_month", "user_id", "report_month"),)
+    __table_args__ = (
+        Index("idx_reports_shop_month", "shop_id", "report_month"),
+        Index("idx_reports_guest", "guest_session_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    shop_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=True
+    )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("guest_sessions.id", ondelete="CASCADE"),
+        nullable=True,
     )
     report_month: Mapped[date] = mapped_column(Date, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)

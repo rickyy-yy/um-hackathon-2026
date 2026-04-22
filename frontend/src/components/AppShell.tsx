@@ -3,71 +3,87 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { Logo } from '@/components/Logo';
+import { useAuth } from '@/lib/hooks';
+import { useI18n } from '@/i18n';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { ThemeToggle } from './ThemeToggle';
+import { ShopSwitcher } from './ShopSwitcher';
 
-type User = {
-  id: string;
-  email: string;
-  business_name: string;
-  business_type: string;
-  has_reports: boolean;
-};
-
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  requireAuth = true,
+  requireShop = true,
+}: {
+  children: React.ReactNode;
+  requireAuth?: boolean;
+  requireShop?: boolean;
+}) {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
+  const { user, loading } = useAuth();
+  const { t } = useI18n();
+  const [shopCheckLoading, setShopCheckLoading] = useState(requireShop);
 
   useEffect(() => {
+    if (loading) return;
+    if (requireAuth && !user) {
+      router.replace('/login');
+      return;
+    }
+    if (!requireShop || !user) {
+      setShopCheckLoading(false);
+      return;
+    }
+    // Verify the user has at least one shop. If not, send them to the
+    // welcome-shop flow.
     api
-      .get<User>('/api/auth/me')
-      .then((u) => {
-        setUser(u);
-        setReady(true);
+      .get<{ id: string }[]>('/api/shops')
+      .then((list) => {
+        if (list.length === 0) {
+          router.replace('/shops/new?first=1');
+        } else {
+          setShopCheckLoading(false);
+        }
       })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) router.replace('/login');
-        else setReady(true);
-      });
-  }, [router]);
+      .catch(() => setShopCheckLoading(false));
+  }, [loading, user, requireAuth, requireShop, router]);
 
   async function logout() {
     await api.post('/api/auth/logout').catch(() => null);
     router.replace('/');
   }
 
-  if (!ready) {
+  if (loading || shopCheckLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg text-ink/50">
-        Memuatkan…
+      <div className="flex min-h-screen items-center justify-center bg-bg text-muted">
+        Loading…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="min-h-screen bg-bg text-ink">
       <header className="sticky top-0 z-10 bg-bg/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href={user?.has_reports ? '/dashboard' : '/upload'}>
+          <Link href="/dashboard">
             <Logo />
           </Link>
-          <nav className="flex items-center gap-5 text-sm font-semibold text-primary">
-            <Link href="/dashboard" className="hover:underline">
-              Dashboard
+          <nav className="flex items-center gap-3 text-sm">
+            {user && <ShopSwitcher />}
+            <Link href="/dashboard" className="hidden md:inline text-primary font-semibold hover:underline">
+              {t('nav.dashboard')}
             </Link>
-            <Link href="/upload" className="hover:underline">
-              Upload
-            </Link>
-            {user && (
-              <div className="flex items-center gap-3">
-                <span className="hidden rounded-xl bg-surface/60 px-3 py-1 text-xs text-ink/70 md:inline">
-                  {user.business_name}
-                </span>
-                <button onClick={logout} className="text-alert font-semibold">
-                  Keluar
-                </button>
-              </div>
+            <LanguageSwitcher />
+            <ThemeToggle />
+            {user ? (
+              <button onClick={logout} className="text-sm font-semibold text-alert hover:underline">
+                {t('nav.logout')}
+              </button>
+            ) : (
+              <Link href="/login" className="text-sm font-semibold text-primary hover:underline">
+                {t('nav.login')}
+              </Link>
             )}
           </nav>
         </div>

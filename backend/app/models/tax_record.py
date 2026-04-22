@@ -15,8 +15,8 @@ class TaxRecord(Base):
     __tablename__ = "tax_records"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    shop_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=False, index=True
     )
     tax_year: Mapped[int] = mapped_column(Integer, nullable=False)
     total_revenue: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

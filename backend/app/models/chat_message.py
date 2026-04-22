@@ -12,11 +12,19 @@ from app.core.database import Base
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
-    __table_args__ = (Index("idx_chat_user", "user_id"),)
+    __table_args__ = (
+        Index("idx_chat_shop", "shop_id"),
+        Index("idx_chat_guest", "guest_session_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    shop_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=True
+    )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("guest_sessions.id", ondelete="CASCADE"),
+        nullable=True,
     )
     upload_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("data_uploads.id", ondelete="SET NULL"), nullable=True

@@ -1,10 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AppShell } from '@/components/AppShell';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Logo } from '@/components/Logo';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { ShopSwitcher } from '@/components/ShopSwitcher';
+import { ChatPanel, type ChatMsg } from '@/components/ChatPanel';
 import { api, ApiError } from '@/lib/api';
-import { rm } from '@/lib/format';
+import { useAuth } from '@/lib/hooks';
+import { useI18n, messageForApiError } from '@/i18n';
 
 type Tab = 'file' | 'scan' | 'chat';
 
@@ -32,51 +38,103 @@ type Upload = {
 };
 
 export default function UploadPage() {
+  const { user, loading } = useAuth();
+  const { t } = useI18n();
   const [tab, setTab] = useState<Tab>('file');
   const [rows, setRows] = useState<ExtractedRow[]>([]);
   const [upload, setUpload] = useState<Upload | null>(null);
 
+  const isGuest = !loading && !user;
+
   return (
-    <AppShell>
-      <h1 className="font-serif text-4xl font-bold text-primary">Muat naik data</h1>
-      <p className="mt-2 text-ink/70">
-        Pilih cara paling senang untuk anda — CSV, gambar buku akaun, atau sembang dengan Kira.
-      </p>
+    <div className="min-h-screen bg-bg text-ink">
+      <header className="sticky top-0 z-10 bg-bg/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link href="/">
+            <Logo />
+          </Link>
+          <nav className="flex items-center gap-3 text-sm">
+            {user && <ShopSwitcher />}
+            <LanguageSwitcher />
+            <ThemeToggle />
+            {isGuest ? (
+              <Link href="/login" className="text-sm font-semibold text-primary hover:underline">
+                {t('nav.alreadyHaveAccount')}
+              </Link>
+            ) : (
+              <Link href="/dashboard" className="text-sm font-semibold text-primary hover:underline">
+                {t('nav.dashboard')}
+              </Link>
+            )}
+          </nav>
+        </div>
+      </header>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-3">
-        <TabCard
-          active={tab === 'file'}
-          onClick={() => setTab('file')}
-          icon="📄"
-          title="Fail CSV / PDF / XLSX"
-          desc="Export dari POS anda."
-        />
-        <TabCard
-          active={tab === 'scan'}
-          onClick={() => setTab('scan')}
-          icon="📷"
-          title="Gambar buku akaun"
-          desc="Skrin TnG, DuitNow, atau tulisan tangan."
-        />
-        <TabCard
-          active={tab === 'chat'}
-          onClick={() => setTab('chat')}
-          icon="💬"
-          title="Chat dengan Kira"
-          desc="Kira tanya beberapa soalan."
-        />
-      </div>
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        {isGuest && (
+          <div className="mb-6 rounded-2xl border border-accent bg-accent/10 px-4 py-3 text-sm text-ink">
+            <span className="font-semibold text-primary">•</span> {t('upload.guestBanner')}
+          </div>
+        )}
 
-      <div className="mt-6">
-        {tab === 'file' && <FileTab onProcessed={(u) => { setUpload(u); setRows(u.extracted_data_json?.rows || []); }} />}
-        {tab === 'scan' && <ScanTab onProcessed={(u) => { setUpload(u); setRows(u.extracted_data_json?.rows || []); }} />}
-        {tab === 'chat' && <ChatTab onDone={(collected) => setRows(collectedToRows(collected))} />}
-      </div>
+        <h1 className="font-serif text-4xl font-bold text-primary">{t('upload.title')}</h1>
+        <p className="mt-2 text-ink/70">{t('upload.subtitle')}</p>
 
-      {rows.length > 0 && upload && (
-        <DataReview upload={upload} rows={rows} setRows={setRows} />
-      )}
-    </AppShell>
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <TabCard
+            active={tab === 'file'}
+            onClick={() => setTab('file')}
+            icon="📄"
+            title="CSV · PDF · XLSX"
+            desc="POS export or ledger file."
+          />
+          <TabCard
+            active={tab === 'scan'}
+            onClick={() => setTab('scan')}
+            icon="📷"
+            title="Photo"
+            desc="Touch n Go, DuitNow, or handwritten ledger."
+          />
+          <TabCard
+            active={tab === 'chat'}
+            onClick={() => setTab('chat')}
+            icon="💬"
+            title="Chat with Kira"
+            desc="Fill in data by talking."
+          />
+        </div>
+
+        <div className="mt-6">
+          {tab === 'file' && (
+            <FileTab
+              onProcessed={(u) => {
+                setUpload(u);
+                setRows(u.extracted_data_json?.rows || []);
+              }}
+            />
+          )}
+          {tab === 'scan' && (
+            <ScanTab
+              onProcessed={(u) => {
+                setUpload(u);
+                setRows(u.extracted_data_json?.rows || []);
+              }}
+            />
+          )}
+          {tab === 'chat' && (
+            <ChatTab
+              onDone={(collected) => {
+                setRows(collectedToRows(collected));
+              }}
+            />
+          )}
+        </div>
+
+        {rows.length > 0 && upload && (
+          <DataReview upload={upload} rows={rows} setRows={setRows} isGuest={isGuest} />
+        )}
+      </main>
+    </div>
   );
 }
 
@@ -115,10 +173,14 @@ function TabCard({
     <button
       onClick={onClick}
       className={`rounded-2xl border-2 p-5 text-left transition ${
-        active ? 'border-primary bg-white shadow-card' : 'border-primary/10 bg-white/60 hover:bg-white'
+        active
+          ? 'border-primary bg-[rgb(var(--color-card))] shadow-card'
+          : 'border-primary/10 bg-[rgb(var(--color-card))]/60 hover:bg-[rgb(var(--color-card))]'
       }`}
     >
-      <span className="text-2xl">{icon}</span>
+      <span className="text-2xl" aria-hidden>
+        {icon}
+      </span>
       <h3 className="mt-2 font-serif text-xl font-bold text-primary">{title}</h3>
       <p className="mt-1 text-sm text-ink/70">{desc}</p>
     </button>
@@ -126,6 +188,7 @@ function TabCard({
 }
 
 function FileTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -138,20 +201,20 @@ function FileTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
     const fd = new FormData();
     fd.append('file', f);
     try {
-      const upload = await api.upload<Upload>('/api/upload/file', fd);
-      if (upload.processing_status === 'failed') {
-        setError(upload.extracted_data_json?.error || 'Gagal proses fail.');
+      const u = await api.upload<Upload>('/api/upload/file', fd);
+      if (u.processing_status === 'failed') {
+        setError(u.extracted_data_json?.error || t('errors.generic'));
       }
-      onProcessed(upload);
+      onProcessed(u);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Tak boleh upload. Cuba lagi.');
+      setError(messageForApiError(err, t));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="rounded-2xl bg-white p-10 shadow-card">
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-10 shadow-card">
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
@@ -161,11 +224,11 @@ function FileTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
         }}
         className="cursor-pointer rounded-2xl border-2 border-dashed border-primary/30 p-10 text-center hover:bg-bg/30"
       >
-        <p className="text-5xl">📥</p>
+        <p className="text-5xl" aria-hidden>📥</p>
         <p className="mt-3 font-serif text-xl font-bold text-primary">
-          Drop fail di sini atau klik untuk pilih
+          Drop a file or click to pick
         </p>
-        <p className="mt-1 text-sm text-ink/60">CSV · XLSX · PDF · JPG · PNG · maksimum 10MB</p>
+        <p className="mt-1 text-sm text-ink/60">CSV · XLSX · PDF · JPG · PNG · max 10 MB</p>
       </div>
       <input
         ref={inputRef}
@@ -174,11 +237,7 @@ function FileTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
         accept=".csv,.tsv,.xlsx,.xls,.pdf,.jpg,.jpeg,.png,.webp"
         onChange={(e) => handle(e.target.files)}
       />
-      {busy && (
-        <p className="mt-4 text-center text-sm text-primary">
-          ✨ Kira sedang baca data anda…
-        </p>
-      )}
+      {busy && <p className="mt-4 text-center text-sm text-primary">✨ Kira is reading your data…</p>}
       {error && (
         <div className="mt-4 rounded-xl border-l-4 border-alert bg-alert/10 px-4 py-3 text-sm text-alert">
           {error}
@@ -189,6 +248,7 @@ function FileTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
 }
 
 function ScanTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -201,26 +261,26 @@ function ScanTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
     const fd = new FormData();
     fd.append('file', f);
     try {
-      const upload = await api.upload<Upload>('/api/upload/file', fd);
-      onProcessed(upload);
+      const u = await api.upload<Upload>('/api/upload/file', fd);
+      onProcessed(u);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Tak boleh upload.');
+      setError(messageForApiError(err, t));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="rounded-2xl bg-white p-10 shadow-card text-center">
-      <p className="text-5xl">📷</p>
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-10 shadow-card text-center">
+      <p className="text-5xl" aria-hidden>📷</p>
       <h3 className="mt-3 font-serif text-2xl font-bold text-primary">
-        Ambil gambar atau pilih dari galeri
+        Take a photo or pick from gallery
       </h3>
       <p className="mt-2 text-sm text-ink/70">
-        Kira boleh baca buku akaun tulisan tangan, skrin Touch n Go, QR DuitNow, dan resit POS.
+        Kira reads handwritten ledgers, TnG/DuitNow screenshots, and POS receipts.
       </p>
       <button onClick={() => inputRef.current?.click()} className="btn-primary mt-6">
-        📸 Buka kamera
+        📸 Open camera
       </button>
       <input
         ref={inputRef}
@@ -230,9 +290,7 @@ function ScanTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
         className="hidden"
         onChange={(e) => handle(e.target.files)}
       />
-      {busy && (
-        <p className="mt-4 text-sm text-primary">✨ Kira sedang kenal pasti data dalam gambar…</p>
-      )}
+      {busy && <p className="mt-4 text-sm text-primary">✨ Kira is reading the image…</p>}
       {error && (
         <div className="mt-4 rounded-xl border-l-4 border-alert bg-alert/10 px-4 py-3 text-sm text-alert">
           {error}
@@ -242,15 +300,12 @@ function ScanTab({ onProcessed }: { onProcessed: (u: Upload) => void }) {
   );
 }
 
-type ChatMsg = { role: 'user' | 'assistant'; content: string };
-
 function ChatTab({ onDone }: { onDone: (collected: any) => void }) {
+  const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState('');
-  const [quick, setQuick] = useState<string[]>(['Bulan lepas', 'Minggu lepas', 'Custom']);
+  const [quick, setQuick] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
-  const [progress, setProgress] = useState('Kira sedia');
 
   useEffect(() => {
     if (ready) return;
@@ -261,100 +316,45 @@ function ChatTab({ onDone }: { onDone: (collected: any) => void }) {
         setQuick(r.quick_replies || []);
         setReady(true);
       })
-      .catch(() => {
-        setMessages([
-          {
-            role: 'assistant',
-            content:
-              'Hai! Saya Kira 👋 Jom kita kumpul data jualan anda — tempoh mana?',
-          },
-        ]);
-        setReady(true);
-      });
+      .catch(() => setReady(true));
   }, [ready]);
 
   async function send(content: string) {
     if (!content.trim() || busy) return;
-    const next = [...messages, { role: 'user' as const, content }];
+    const next: ChatMsg[] = [...messages, { role: 'user', content }];
     setMessages(next);
-    setInput('');
     setBusy(true);
-    setProgress('Kira sedang fikir…');
     try {
       const r = await api.post<any>('/api/chat/message', { content });
       setMessages([...next, { role: 'assistant', content: r.assistant_message.content }]);
       setQuick(r.quick_replies || []);
-      setProgress('Kira sedia');
       if (r.done && r.collected_data) onDone(r.collected_data);
     } catch (err) {
       setMessages([
         ...next,
-        { role: 'assistant', content: 'Maaf, ada masalah. Cuba sekali lagi?' },
+        { role: 'assistant', content: messageForApiError(err, t) },
       ]);
-      setProgress('Kira sedia');
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <div className="overflow-hidden rounded-3xl bg-white shadow-card">
-      <div className="bg-primary px-5 py-4 text-white">
-        <p className="font-bold">Kira sedang bertanya</p>
-        <p className="text-xs opacity-80">· {progress}</p>
-      </div>
-      <div className="space-y-3 bg-bg p-5 min-h-[340px]">
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'flex justify-end' : ''}>
-            <div className={m.role === 'assistant' ? 'sage-bubble max-w-[80%]' : 'user-bubble max-w-[80%]'}>
-              {m.content}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {quick.length > 0 && (
-        <div className="flex flex-wrap gap-2 border-t border-primary/10 bg-white px-5 py-3">
-          {quick.map((q) => (
-            <button key={q} className="chip" onClick={() => send(q)}>
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 border-t border-primary/10 bg-white px-4 py-3">
-        <input
-          className="input flex-1"
-          placeholder="Tulis jawapan anda…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && send(input)}
-          disabled={busy}
-        />
-        <button
-          onClick={() => send(input)}
-          disabled={busy || !input.trim()}
-          className="btn-primary px-4 py-3"
-          aria-label="Hantar"
-        >
-          →
-        </button>
-      </div>
-    </div>
-  );
+  return <ChatPanel messages={messages} quickReplies={quick} onSend={send} busy={busy} />;
 }
 
 function DataReview({
   upload,
   rows,
   setRows,
+  isGuest,
 }: {
   upload: Upload;
   rows: ExtractedRow[];
   setRows: (r: ExtractedRow[]) => void;
+  isGuest: boolean;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const period = useMemo(() => {
@@ -376,7 +376,7 @@ function DataReview({
     try {
       await api.put(`/api/upload/${upload.id}/confirm`, { rows });
       if (!period) {
-        setError('Tiada tarikh dalam data. Sila tambah tarikh untuk setiap baris.');
+        setError('Add a date to each row so we can calculate a period.');
         setBusy(false);
         return;
       }
@@ -384,28 +384,28 @@ function DataReview({
         start_date: period.start,
         end_date: period.end,
       });
-      router.push(`/report/${report.id}`);
+      router.push(`/report/${report.id}${isGuest ? '?guest=1' : ''}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal generate laporan.');
+      setError(err instanceof ApiError ? err.message : t('errors.generic'));
       setBusy(false);
     }
   }
 
   return (
     <div className="mt-10">
-      <h2 className="font-serif text-2xl font-bold text-primary">Semak &amp; confirm data</h2>
-      <p className="text-sm text-ink/70">Anda boleh edit angka yang Kira salah baca.</p>
+      <h2 className="font-serif text-2xl font-bold text-primary">Review & confirm</h2>
+      <p className="text-sm text-ink/70">Edit any numbers Kira read wrong.</p>
 
-      <div className="mt-4 overflow-auto rounded-2xl bg-white shadow-card">
+      <div className="mt-4 overflow-auto rounded-2xl bg-[rgb(var(--color-card))] shadow-card">
         <table className="min-w-full text-sm">
           <thead className="bg-primary/5 text-primary">
             <tr>
               <th className="p-3 text-left">Item</th>
               <th className="p-3 text-right">Qty</th>
-              <th className="p-3 text-right">Harga</th>
-              <th className="p-3 text-right">Kos</th>
-              <th className="p-3 text-left">Tarikh</th>
-              <th className="p-3 text-left">Bayar</th>
+              <th className="p-3 text-right">Price</th>
+              <th className="p-3 text-right">Cost</th>
+              <th className="p-3 text-left">Date</th>
+              <th className="p-3 text-left">Paid</th>
             </tr>
           </thead>
           <tbody>
@@ -463,7 +463,7 @@ function DataReview({
                     <option value="touch_n_go">Touch n Go</option>
                     <option value="duitnow">DuitNow</option>
                     <option value="card">Card</option>
-                    <option value="other">Lain-lain</option>
+                    <option value="other">Other</option>
                   </select>
                 </td>
               </tr>
@@ -480,7 +480,7 @@ function DataReview({
 
       <div className="mt-6 flex justify-end gap-3">
         <button onClick={confirm} disabled={busy} className="btn-primary">
-          {busy ? 'Kira sedang kira…' : 'Jana laporan →'}
+          {busy ? '…' : 'Generate report →'}
         </button>
       </div>
     </div>

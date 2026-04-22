@@ -1,4 +1,4 @@
-"""Tax estimation endpoint."""
+"""Tax estimation endpoint. Authed-only, scoped to active shop."""
 from __future__ import annotations
 
 from datetime import date
@@ -8,8 +8,8 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
-from app.models import CostEntry, MenuItem, SalesRecord, User
+from app.core.scope import Scope, require_authenticated_scope
+from app.models import CostEntry, MenuItem, SalesRecord
 from app.schemas.tax import TaxEstimate
 from app.services import tax_calculator
 
@@ -20,29 +20,27 @@ router = APIRouter(prefix="/api/tax", tags=["tax"])
 async def estimate(
     year: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    scope: Scope = Depends(require_authenticated_scope),
 ) -> TaxEstimate:
     start, end = date(year, 1, 1), date(year, 12, 31)
 
-    # Total revenue
     rev_stmt = select(
         func.coalesce(
             func.sum(SalesRecord.quantity_sold * SalesRecord.unit_selling_price), 0
         )
     ).where(
         and_(
-            SalesRecord.user_id == user.id,
+            SalesRecord.shop_id == scope.shop_id,
             SalesRecord.sale_date >= start,
             SalesRecord.sale_date <= end,
         )
     )
     total_revenue = float((await db.execute(rev_stmt)).scalar_one() or 0)
 
-    # Total cost — join each sale with the latest applicable cost_entry
     sales_result = await db.execute(
         select(SalesRecord).where(
             and_(
-                SalesRecord.user_id == user.id,
+                SalesRecord.shop_id == scope.shop_id,
                 SalesRecord.sale_date >= start,
                 SalesRecord.sale_date <= end,
             )
@@ -50,8 +48,10 @@ async def estimate(
     )
     sales = list(sales_result.scalars().all())
 
-    cost_stmt = select(CostEntry).join(MenuItem, CostEntry.menu_item_id == MenuItem.id).where(
-        MenuItem.user_id == user.id
+    cost_stmt = (
+        select(CostEntry)
+        .join(MenuItem, CostEntry.menu_item_id == MenuItem.id)
+        .where(MenuItem.shop_id == scope.shop_id)
     )
     cost_entries = list((await db.execute(cost_stmt)).scalars().all())
     costs_by_item: dict = {}
@@ -79,5 +79,5 @@ async def estimate(
         taxable_income=round(taxable, 2),
         estimated_tax=tax_result.tax,
         tax_bracket=tax_result.bracket_label,
-        note="This is an estimate only. Please consult a tax professional.",
+        note="Estimate only. Please consult a tax professional.",
     )

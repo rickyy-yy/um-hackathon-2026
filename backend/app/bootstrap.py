@@ -1,30 +1,38 @@
-"""Dev bootstrap — create tables if they don't exist.
+"""Dev bootstrap — runs Alembic migrations to sync the schema.
 
-Alembic migrations live under ``backend/migrations`` for longer-term schema
-management, but for a hackathon compose-up we just ``create_all`` so the
-stack is usable with a single command.
+For a hackathon compose-up we drive Alembic programmatically so the stack
+becomes usable with a single ``docker compose up``. Production deployments
+should run ``alembic upgrade head`` explicitly as part of their deploy step.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
+import os
+from pathlib import Path
 
-from app.core.database import Base, engine
-from app import models  # noqa: F401  — registers ORM classes
+from alembic import command
+from alembic.config import Config
 
-logger = logging.getLogger("kira2je.bootstrap")
+logger = logging.getLogger("kira2lah.bootstrap")
 
 
-async def init() -> None:
-    logger.info("Creating database schema if missing")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Schema ready")
+def _alembic_config() -> Config:
+    backend_dir = Path(__file__).resolve().parent.parent
+    cfg = Config(str(backend_dir / "migrations" / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "migrations"))
+    # Pull the URL from the environment so alembic and the live app agree.
+    from app.config import settings
+
+    cfg.set_main_option("sqlalchemy.url", settings.sync_database_url)
+    return cfg
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(init())
+    logger.info("Running Alembic migrations")
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    logger.info("Migrations complete")
 
 
 if __name__ == "__main__":

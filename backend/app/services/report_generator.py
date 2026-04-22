@@ -1,6 +1,9 @@
 """Report generation — computes hard numbers locally, then asks the GLM to
 write a narrative. Cannibalization detection and margin-decline flagging are
 structured checks; only the prose comes from the AI.
+
+Works for both authenticated (shop-scoped) and guest (guest_session-scoped)
+callers via the shared ``Scope`` abstraction.
 """
 from __future__ import annotations
 
@@ -15,7 +18,8 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import CostEntry, MenuItem, Report, SalesRecord, User
+from app.core.scope import Scope
+from app.models import CostEntry, MenuItem, Report, SalesRecord
 from app.services import ai_service, tax_calculator
 
 logger = logging.getLogger(__name__)
@@ -24,6 +28,12 @@ GREEN_THRESHOLD = 40.0
 YELLOW_THRESHOLD = 20.0
 MARGIN_DROP_ALERT_PP = 5.0
 CANNIBAL_PRICE_WINDOW = 3.00
+
+LANGUAGE_INSTRUCTIONS = {
+    "en": "Respond in English. Use casual, plain-spoken tone — no MBA jargon.",
+    "ms": "Jawab dalam Bahasa Malaysia casual. Jangan guna istilah MBA — cakap macam biasa.",
+    "zh": "用简体中文回答。语气要亲切、口语化，不要使用商业术语。",
+}
 
 
 def score_for_margin(margin_pct: float) -> str:
@@ -34,26 +44,49 @@ def score_for_margin(margin_pct: float) -> str:
     return "red"
 
 
+def _scope_item_filter(scope: Scope):
+    if scope.shop_id is not None:
+        return MenuItem.shop_id == scope.shop_id
+    return MenuItem.guest_session_id == scope.guest_session_id
+
+
+def _scope_sales_filter(scope: Scope):
+    if scope.shop_id is not None:
+        return SalesRecord.shop_id == scope.shop_id
+    return SalesRecord.guest_session_id == scope.guest_session_id
+
+
+def _scope_report_filter(scope: Scope):
+    if scope.shop_id is not None:
+        return Report.shop_id == scope.shop_id
+    return Report.guest_session_id == scope.guest_session_id
+
+
 async def generate_report(
     db: AsyncSession,
-    user: User,
+    scope: Scope,
     start: date,
     end: date,
     label: str | None = None,
 ) -> Report:
     label = label or f"{start.strftime('%B %Y')} Report"
-    logger.info("Generating report for user=%s period=%s..%s", user.id, start, end)
+    logger.info(
+        "Generating report scope=(shop=%s guest=%s) period=%s..%s",
+        scope.shop_id,
+        scope.guest_session_id,
+        start,
+        end,
+    )
 
-    # Pull data
     items_result = await db.execute(
-        select(MenuItem).where(MenuItem.user_id == user.id, MenuItem.is_active == True)  # noqa: E712
+        select(MenuItem).where(_scope_item_filter(scope), MenuItem.is_active == True)  # noqa: E712
     )
     items = {item.id: item for item in items_result.scalars().all()}
 
     sales_result = await db.execute(
         select(SalesRecord).where(
             and_(
-                SalesRecord.user_id == user.id,
+                _scope_sales_filter(scope),
                 SalesRecord.sale_date >= start,
                 SalesRecord.sale_date <= end,
             )
@@ -62,11 +95,10 @@ async def generate_report(
     sales = sales_result.scalars().all()
 
     costs_result = await db.execute(
-        select(CostEntry).where(CostEntry.menu_item_id.in_(list(items.keys())))
+        select(CostEntry).where(CostEntry.menu_item_id.in_(list(items.keys()) or [UUID(int=0)]))
     )
     cost_entries = costs_result.scalars().all()
 
-    # Group costs by menu_item, sorted by date (we pick the most recent cost on-or-before sale date)
     costs_by_item: dict[UUID, list[CostEntry]] = defaultdict(list)
     for c in cost_entries:
         costs_by_item[c.menu_item_id].append(c)
@@ -80,7 +112,6 @@ async def generate_report(
             return applicable[-1].cost_per_unit
         return bucket[0].cost_per_unit if bucket else Decimal("0")
 
-    # Per-item aggregates
     per_item: dict[UUID, dict[str, Any]] = {}
     for item_id, item in items.items():
         per_item[item_id] = {
@@ -128,7 +159,6 @@ async def generate_report(
         total_units += row["units_sold"]
         menu_breakdown.append(row)
 
-    # Sort: most profitable first, losses last
     menu_breakdown.sort(key=lambda r: r["gross_profit"], reverse=True)
 
     overall_margin = (
@@ -137,8 +167,7 @@ async def generate_report(
         else 0.0
     )
 
-    # Historical deltas — compare against the immediately-previous report
-    prev_report = await _fetch_previous_report(db, user.id, start)
+    prev_report = await _fetch_previous_report(db, scope, start)
     declining_items: list[dict[str, Any]] = []
     cannibalization_flags: list[dict[str, Any]] = []
 
@@ -180,7 +209,6 @@ async def generate_report(
         "revenue_by_payment_method": {k: float(v) for k, v in revenue_by_payment.items()},
     }
 
-    # Tax estimation — extrapolate if the period is < 12 months
     period_days = max((end - start).days + 1, 1)
     annualisation = 365.0 / period_days
     est_annual_revenue = float(total_revenue) * annualisation
@@ -194,7 +222,7 @@ async def generate_report(
         "estimated_taxable_income": round(est_taxable, 2),
         "estimated_tax": tax_result.tax,
         "tax_bracket": tax_result.bracket_label,
-        "note": "This is an estimate only. Please consult a tax professional.",
+        "note": "Estimate only. Please consult a tax professional.",
     }
 
     summary_json = {
@@ -210,11 +238,12 @@ async def generate_report(
         "tax_estimation": tax_estimation,
     }
 
-    # Ask the GLM for narrative recommendations
-    ai_recs = _ask_glm_for_narrative(summary_json, user.business_name, user.business_type)
+    shop_name, shop_type, lang = _scope_narrative_context(scope)
+    ai_recs = _ask_glm_for_narrative(summary_json, shop_name, shop_type, lang)
 
     report = Report(
-        user_id=user.id,
+        shop_id=scope.shop_id,
+        guest_session_id=scope.guest_session_id,
         report_month=start.replace(day=1),
         title=label,
         summary_json=summary_json,
@@ -222,18 +251,31 @@ async def generate_report(
         status="completed",
     )
     db.add(report)
-
-    user.has_reports = True
     await db.flush()
     await db.commit()
     await db.refresh(report)
     return report
 
 
-async def _fetch_previous_report(db: AsyncSession, user_id: UUID, current_start: date) -> Report | None:
+def _scope_narrative_context(scope: Scope) -> tuple[str, str, str]:
+    if scope.shop is not None:
+        shop_name = scope.shop.shop_name
+        shop_type = scope.shop.shop_type
+        lang = scope.user.preferred_language if scope.user else "en"
+        return shop_name, shop_type, lang
+    lang = scope.guest_session.preferred_language if scope.guest_session else "en"
+    return "Guest shop", "hawker_stall", lang
+
+
+async def _fetch_previous_report(db: AsyncSession, scope: Scope, current_start: date) -> Report | None:
     result = await db.execute(
         select(Report)
-        .where(and_(Report.user_id == user_id, Report.report_month < current_start.replace(day=1)))
+        .where(
+            and_(
+                _scope_report_filter(scope),
+                Report.report_month < current_start.replace(day=1),
+            )
+        )
         .order_by(Report.report_month.desc())
         .limit(1)
     )
@@ -241,10 +283,6 @@ async def _fetch_previous_report(db: AsyncSession, user_id: UUID, current_start:
 
 
 def _detect_cannibalization(breakdown: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Pair items within the same category whose prices are within RM3 of each
-    other and whose margins diverge. Flag the low-margin one if shifting its
-    volume to the high-margin partner would net more profit.
-    """
     by_category: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in breakdown:
         cat = row.get("category")
@@ -266,7 +304,7 @@ def _detect_cannibalization(breakdown: list[dict[str, Any]]) -> list[dict[str, A
                 price_gap = abs(a["selling_price"] - b["selling_price"])
                 if price_gap > CANNIBAL_PRICE_WINDOW:
                     continue
-                per_unit_cost_b = (b["total_cost"] / max(b["units_sold"], 1))
+                per_unit_cost_b = b["total_cost"] / max(b["units_sold"], 1)
                 hypothetical_additional_profit = (
                     a["units_sold"] * (b["selling_price"] - per_unit_cost_b)
                 )
@@ -285,28 +323,29 @@ def _detect_cannibalization(breakdown: list[dict[str, Any]]) -> list[dict[str, A
                             "potential_profit_uplift": round(
                                 post_removal - current_combined, 2
                             ),
-                            "recommendation": None,  # filled by GLM
+                            "recommendation": None,
                         }
                     )
     return flags
 
 
-def _ask_glm_for_narrative(summary: dict[str, Any], biz_name: str, biz_type: str) -> str:
+def _ask_glm_for_narrative(summary: dict[str, Any], biz_name: str, biz_type: str, lang: str) -> str:
+    language_instruction = LANGUAGE_INSTRUCTIONS.get(lang, LANGUAGE_INSTRUCTIONS["en"])
     system = (
-        "You are Kira, the AI business advisor for Kira2 Je — a tool for Malaysian "
-        "F&B micro-entrepreneurs (mak cik gerai, pak cik hawker, small warung owners). "
-        "Speak warmly in casual Bahasa Malaysia. Keep jargon out — always express "
-        "money in RM with plain-language phrasing. Structure your answer with clear "
-        "short sections: Ringkasan, Item perlu perhatian, Cadangan tindakan. "
-        "Focus on actionable advice in RM, not percentages."
+        "You are Kira, the AI business advisor for Kira2Lah — a tool for Malaysian "
+        "F&B micro-entrepreneurs (mak cik gerai, pak cik hawker, small warung "
+        "owners). " + language_instruction + " Always express money in RM with "
+        "plain-language phrasing. Structure your answer with clear short sections: "
+        "Summary, Items to watch, Recommended actions. Focus on actionable advice "
+        "in RM, not percentages."
     )
     user = (
         f"Business: {biz_name} ({biz_type})\n"
         f"Report data (JSON):\n{json.dumps(summary, indent=2, default=str)}\n\n"
         "Write 3 sections:\n"
-        "1. Ringkasan — 2–3 sentence financial summary.\n"
-        "2. Item perlu perhatian — highlight declining margins and losses, in RM.\n"
-        "3. Cadangan tindakan — 3 concrete actions (e.g. 'Naikkan harga Teh Tarik "
+        "1. Summary — 2–3 sentence financial summary.\n"
+        "2. Items to watch — highlight declining margins and losses, in RM.\n"
+        "3. Recommended actions — 3 concrete actions (e.g. 'Raise Teh Tarik by "
         "RM0.50'). Be specific, reference the numbers.\n"
         "If cannibalization flags are present, analyse them and recommend: remove, "
         "reprice, or keep. Output plain text (no markdown headings, but use line "

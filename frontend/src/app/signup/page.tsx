@@ -1,182 +1,163 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, ApiError } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Logo } from '@/components/Logo';
-
-const BUSINESS_TYPES: { value: string; label: string }[] = [
-  { value: 'hawker_stall', label: 'Gerai / Hawker stall' },
-  { value: 'roadside_vendor', label: 'Penjaja tepi jalan' },
-  { value: 'cafe', label: 'Kafe' },
-  { value: 'restaurant', label: 'Restoran' },
-  { value: 'food_truck', label: 'Food truck' },
-  { value: 'other', label: 'Lain-lain' },
-];
+import { BackButton } from '@/components/BackButton';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { api } from '@/lib/api';
+import { useI18n, messageForApiError } from '@/i18n';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { t, lang } = useI18n();
+
   const [form, setForm] = useState({
-    email: '',
+    phone_number: '',
     password: '',
     confirm: '',
-    business_name: '',
-    business_type: 'hawker_stall',
-    phone_number: '',
+    full_name: '',
+    email: '',
   });
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (form.password !== form.confirm) {
-      setError('Kata laluan tidak sepadan');
+      setError(t('errors.ERR_PASSWORD_WEAK'));
       return;
     }
-    setLoading(true);
+    setBusy(true);
     try {
       await api.post('/api/auth/signup', {
-        email: form.email,
+        phone_number: form.phone_number,
         password: form.password,
-        business_name: form.business_name,
-        business_type: form.business_type,
-        phone_number: form.phone_number || null,
+        full_name: form.full_name || undefined,
+        email: form.email || undefined,
+        preferred_language: lang,
       });
-      router.push('/login?signed_up=1');
+      // On success the backend has already set the session cookie AND
+      // adopted any guest data. Send the user to the welcome-shop flow.
+      router.replace('/shops/new?first=1');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Sesuatu tak kena. Cuba lagi.');
+      setError(messageForApiError(err, t));
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-bg">
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col px-6 pt-10 pb-12">
-        <Logo />
+    <main className="min-h-screen bg-bg text-ink">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <BackButton />
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <ThemeToggle />
+        </div>
+      </nav>
 
-        <h1 className="mt-10 font-serif text-4xl font-bold text-primary leading-tight">
-          Daftar akaun baru
-        </h1>
-        <p className="mt-3 text-ink/70">Faham menu anda dalam 5 minit. Percuma untuk cuba.</p>
+      <div className="mx-auto max-w-md px-6 pb-16">
+        <div className="mb-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <Logo />
+          </div>
+          <h1 className="font-serif text-3xl font-bold text-primary">{t('auth.signupTitle')}</h1>
+          <p className="mt-1 text-ink/70 text-sm">{t('auth.signupSubtitle')}</p>
+        </div>
 
-        <form onSubmit={submit} className="mt-8 space-y-5">
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/60">
-              Email
-            </label>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label={t('auth.phone')} hint={t('auth.phoneHint')}>
             <input
-              type="email"
+              className="input"
+              type="tel"
+              value={form.phone_number}
+              onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
+              autoComplete="tel"
+              inputMode="tel"
               required
-              className="input"
-              placeholder="you@warung.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="+60123456789"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/60">
-              Nama kedai
-            </label>
+          <Field label={t('auth.password')} hint={t('auth.passwordHint')}>
             <input
-              type="text"
-              required
               className="input"
-              placeholder="Kedai Mak Cik Ros"
-              value={form.business_name}
-              onChange={(e) => setForm({ ...form, business_name: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/60">
-              Jenis perniagaan
-            </label>
-            <select
-              className="input"
-              value={form.business_type}
-              onChange={(e) => setForm({ ...form, business_type: e.target.value })}
-            >
-              {BUSINESS_TYPES.map((b) => (
-                <option key={b.value} value={b.value}>
-                  {b.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/60">
-              Nombor telefon (pilihan)
-            </label>
-            <div className="flex items-stretch overflow-hidden rounded-xl border border-primary/20 bg-white">
-              <span className="flex items-center gap-1 border-r border-primary/10 bg-surface/40 px-3 text-sm font-semibold text-ink/70">
-                🇲🇾 +60
-              </span>
-              <input
-                type="tel"
-                className="flex-1 bg-transparent px-4 py-3 focus:outline-none"
-                placeholder="012 345 6789"
-                value={form.phone_number}
-                onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/60">
-              Kata laluan
-            </label>
-            <input
               type="password"
-              required
-              className="input"
-              placeholder="Min 8 aksara, ada huruf besar &amp; nombor"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink/60">
-              Sahkan kata laluan
-            </label>
-            <input
-              type="password"
+              autoComplete="new-password"
+              minLength={8}
               required
+            />
+          </Field>
+
+          <Field label={t('auth.password') + ' ✓'}>
+            <input
               className="input"
+              type="password"
               value={form.confirm}
               onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+              autoComplete="new-password"
+              minLength={8}
+              required
             />
-          </div>
+          </Field>
 
-          {error && (
-            <div className="rounded-xl border-l-4 border-alert bg-alert/10 px-4 py-3 text-sm text-alert">
-              {error}
-            </div>
-          )}
+          <Field label={t('auth.fullName')}>
+            <input
+              className="input"
+              value={form.full_name}
+              onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+              autoComplete="name"
+              maxLength={255}
+            />
+          </Field>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full text-base">
-            {loading ? 'Sedang daftar…' : 'Daftar →'}
+          <Field label={t('auth.email')} hint={t('auth.emailHint')}>
+            <input
+              className="input"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              autoComplete="email"
+            />
+          </Field>
+
+          {error && <p className="text-alert text-sm">{error}</p>}
+
+          <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
+            {busy ? '…' : t('auth.submitSignup')}
           </button>
-
-          <p className="text-center text-xs text-ink/60">
-            Dengan daftar, anda bersetuju dengan{' '}
-            <span className="text-primary font-semibold">Terma</span> ·{' '}
-            <span className="text-primary font-semibold">Privasi</span>
-          </p>
-
-          <p className="text-center text-sm text-ink/70">
-            Dah ada akaun?{' '}
-            <Link href="/login" className="text-primary font-semibold">
-              Log masuk
-            </Link>
-          </p>
         </form>
+
+        <p className="mt-6 text-center text-sm text-muted">
+          <Link href="/login" className="text-primary hover:underline">
+            {t('nav.login')} →
+          </Link>
+        </p>
       </div>
     </main>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
+    </label>
   );
 }

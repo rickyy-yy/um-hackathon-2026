@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { AppShell } from '@/components/AppShell';
+import Link from 'next/link';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { Logo } from '@/components/Logo';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { ShopSwitcher } from '@/components/ShopSwitcher';
+import { ChatPanel, type ChatMsg } from '@/components/ChatPanel';
 import { api, ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/hooks';
+import { useI18n, messageForApiError } from '@/i18n';
 import { rm, scoreLabelMs } from '@/lib/format';
 
 type MenuRow = {
@@ -57,78 +64,94 @@ type Report = {
   };
 };
 
-type ChatReply = {
-  assistant_message: { content: string };
-  quick_replies: string[];
-};
-
-export default function ReportPage() {
+function ReportPageInner() {
   const { id } = useParams<{ id: string }>();
+  const params = useSearchParams();
+  const { user, loading } = useAuth();
+  const { t } = useI18n();
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isGuest = (!loading && !user) || params.get('guest') === '1';
 
   useEffect(() => {
     api
       .get<Report>(`/api/reports/${id}`)
       .then(setReport)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Gagal memuatkan laporan.'),
-      );
-  }, [id]);
-
-  if (error) {
-    return (
-      <AppShell>
-        <div className="rounded-2xl bg-white p-6 text-alert">{error}</div>
-      </AppShell>
-    );
-  }
-
-  if (!report) {
-    return (
-      <AppShell>
-        <p className="text-ink/60">Memuatkan…</p>
-      </AppShell>
-    );
-  }
-
-  const agg = report.summary_json.aggregate_metrics;
+      .catch((err) => setError(messageForApiError(err, t)));
+  }, [id, t]);
 
   return (
-    <AppShell>
-      <div className="space-y-6">
-        <div className="rounded-3xl bg-primary p-6 text-white">
-          <p className="text-xs uppercase tracking-wide opacity-80">
-            Laporan · {report.summary_json.reporting_period.label}
-          </p>
-          <h1 className="font-serif mt-1 text-3xl font-bold">{report.title}</h1>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <Stat label="Jumlah Jualan" value={rm(agg.total_revenue)} />
-            <Stat label="Anggaran Untung" value={rm(agg.gross_profit)} />
-            <Stat label="Margin" value={`${agg.overall_margin_pct.toFixed(1)}%`} />
-            <Stat label="Unit Dijual" value={agg.total_items_sold.toLocaleString('en-MY')} />
-          </div>
+    <div className="min-h-screen bg-bg text-ink">
+      <header className="sticky top-0 z-10 bg-bg/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link href={isGuest ? '/' : '/dashboard'}>
+            <Logo />
+          </Link>
+          <nav className="flex items-center gap-3 text-sm">
+            {user && <ShopSwitcher />}
+            <LanguageSwitcher />
+            <ThemeToggle />
+            {isGuest ? (
+              <Link href="/login" className="text-sm font-semibold text-primary hover:underline">
+                {t('nav.alreadyHaveAccount')}
+              </Link>
+            ) : (
+              <Link href="/dashboard" className="text-sm font-semibold text-primary hover:underline">
+                {t('nav.dashboard')}
+              </Link>
+            )}
+          </nav>
         </div>
+      </header>
 
-        <MenuBreakdown rows={report.summary_json.menu_item_breakdown} />
-
-        {report.summary_json.declining_items.length > 0 && (
-          <DecliningAlerts items={report.summary_json.declining_items} />
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        {error && <div className="rounded-2xl bg-alert/10 p-5 text-alert">{error}</div>}
+        {!report && !error && <p className="text-muted">Loading…</p>}
+        {report && (
+          <div className="space-y-6">
+            <HeroStats report={report} />
+            <MenuBreakdown rows={report.summary_json.menu_item_breakdown} />
+            {report.summary_json.declining_items.length > 0 && (
+              <DecliningAlerts items={report.summary_json.declining_items} />
+            )}
+            {report.summary_json.cannibalization_flags.length > 0 && (
+              <CannibalWarnings flags={report.summary_json.cannibalization_flags} />
+            )}
+            <AIRecommendations text={report.ai_recommendations} />
+            <TaxCard tax={report.summary_json.tax_estimation} />
+            <StrategyChat reportId={report.id} />
+            {isGuest ? <GuestSignupPrompt /> : <ExportBar report={report} />}
+          </div>
         )}
+      </main>
+    </div>
+  );
+}
 
-        {report.summary_json.cannibalization_flags.length > 0 && (
-          <CannibalWarnings flags={report.summary_json.cannibalization_flags} />
-        )}
+export default function ReportPage() {
+  return (
+    <Suspense fallback={<div className="p-10">Loading…</div>}>
+      <ReportPageInner />
+    </Suspense>
+  );
+}
 
-        <AIRecommendations text={report.ai_recommendations} />
-
-        <TaxCard tax={report.summary_json.tax_estimation} />
-
-        <StrategyChat reportId={report.id} />
-
-        <ExportBar report={report} />
+function HeroStats({ report }: { report: Report }) {
+  const agg = report.summary_json.aggregate_metrics;
+  return (
+    <div className="rounded-3xl bg-primary p-6 text-white">
+      <p className="text-xs uppercase tracking-wide opacity-80">
+        Report · {report.summary_json.reporting_period.label}
+      </p>
+      <h1 className="font-serif mt-1 text-3xl font-bold">{report.title}</h1>
+      <div className="mt-4 grid gap-4 md:grid-cols-4">
+        <Stat label="Revenue" value={rm(agg.total_revenue)} />
+        <Stat label="Profit" value={rm(agg.gross_profit)} />
+        <Stat label="Margin" value={`${agg.overall_margin_pct.toFixed(1)}%`} />
+        <Stat label="Units sold" value={agg.total_items_sold.toLocaleString('en-MY')} />
       </div>
-    </AppShell>
+    </div>
   );
 }
 
@@ -143,17 +166,17 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function MenuBreakdown({ rows }: { rows: MenuRow[] }) {
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-card">
-      <h2 className="font-serif text-xl font-bold text-primary">Pecahan setiap menu</h2>
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-5 shadow-card">
+      <h2 className="font-serif text-xl font-bold text-primary">Menu breakdown</h2>
       <div className="mt-3 overflow-auto">
         <table className="min-w-full text-sm">
           <thead className="text-left text-primary/80">
             <tr className="border-b border-primary/10">
               <th className="py-2 pr-2">Item</th>
-              <th className="py-2 pr-2 text-right">Unit</th>
-              <th className="py-2 pr-2 text-right">Jualan</th>
-              <th className="py-2 pr-2 text-right">Kos</th>
-              <th className="py-2 pr-2 text-right">Untung</th>
+              <th className="py-2 pr-2 text-right">Units</th>
+              <th className="py-2 pr-2 text-right">Revenue</th>
+              <th className="py-2 pr-2 text-right">Cost</th>
+              <th className="py-2 pr-2 text-right">Profit</th>
               <th className="py-2 pr-2 text-right">Margin</th>
               <th className="py-2 text-right">Status</th>
             </tr>
@@ -202,16 +225,21 @@ function ScoreBadge({ score }: { score: string }) {
 function DecliningAlerts({
   items,
 }: {
-  items: { item_name: string; current_margin_pct: number; previous_margin_pct: number; margin_drop_pct: number }[];
+  items: {
+    item_name: string;
+    current_margin_pct: number;
+    previous_margin_pct: number;
+    margin_drop_pct: number;
+  }[];
 }) {
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-card border-l-4 border-alert">
-      <h2 className="font-serif text-xl font-bold text-alert">⚠ Margin jatuh</h2>
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-5 shadow-card border-l-4 border-alert">
+      <h2 className="font-serif text-xl font-bold text-alert">Margins dropping</h2>
       <ul className="mt-3 space-y-2">
         {items.map((i) => (
           <li key={i.item_name} className="text-sm text-ink">
-            <b>{i.item_name}</b> — turun dari {i.previous_margin_pct.toFixed(1)}% ke{' '}
-            {i.current_margin_pct.toFixed(1)}% (−{i.margin_drop_pct.toFixed(1)} mata peratus)
+            <b>{i.item_name}</b> — from {i.previous_margin_pct.toFixed(1)}% to{' '}
+            {i.current_margin_pct.toFixed(1)}% (−{i.margin_drop_pct.toFixed(1)} pts)
           </li>
         ))}
       </ul>
@@ -222,17 +250,22 @@ function DecliningAlerts({
 function CannibalWarnings({
   flags,
 }: {
-  flags: { item_a: string; item_b: string; recommendation: string | null; potential_profit_uplift?: number }[];
+  flags: {
+    item_a: string;
+    item_b: string;
+    recommendation: string | null;
+    potential_profit_uplift?: number;
+  }[];
 }) {
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-card border-l-4 border-alert">
-      <h2 className="font-serif text-xl font-bold text-alert">⚠ Menu bergaduh</h2>
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-5 shadow-card border-l-4 border-alert">
+      <h2 className="font-serif text-xl font-bold text-alert">Menu cannibalization</h2>
       <ul className="mt-3 space-y-3 text-sm text-ink">
         {flags.map((f, i) => (
           <li key={i}>
-            <b>{f.item_a}</b> makan jualan <b>{f.item_b}</b>.{' '}
+            <b>{f.item_a}</b> is eating into <b>{f.item_b}</b>.{' '}
             {f.potential_profit_uplift != null && (
-              <>Potensi untung tambahan: {rm(f.potential_profit_uplift, true)}.</>
+              <>Potential uplift: {rm(f.potential_profit_uplift, true)}.</>
             )}
             {f.recommendation && <p className="mt-1 text-ink/80">{f.recommendation}</p>}
           </li>
@@ -245,7 +278,7 @@ function CannibalWarnings({
 function AIRecommendations({ text }: { text: string }) {
   return (
     <div className="rounded-2xl bg-surface/50 p-5">
-      <h2 className="font-serif text-xl font-bold text-primary">Cadangan Kira</h2>
+      <h2 className="font-serif text-xl font-bold text-primary">Kira's recommendations</h2>
       <div className="mt-2 whitespace-pre-wrap text-sm text-ink leading-relaxed">{text}</div>
     </div>
   );
@@ -253,13 +286,13 @@ function AIRecommendations({ text }: { text: string }) {
 
 function TaxCard({ tax }: { tax: Report['summary_json']['tax_estimation'] }) {
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-card">
-      <h2 className="font-serif text-xl font-bold text-primary">Anggaran cukai LHDN</h2>
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-5 shadow-card">
+      <h2 className="font-serif text-xl font-bold text-primary">LHDN tax estimate</h2>
       <div className="mt-3 grid gap-3 md:grid-cols-4">
-        <Mini label="Pendapatan tahunan" value={rm(tax.estimated_annual_revenue)} />
-        <Mini label="Perbelanjaan tahunan" value={rm(tax.estimated_annual_expenses)} />
-        <Mini label="Pendapatan bercukai" value={rm(tax.estimated_taxable_income)} />
-        <Mini label="Anggaran cukai" value={rm(tax.estimated_tax)} accent />
+        <Mini label="Annualised revenue" value={rm(tax.estimated_annual_revenue)} />
+        <Mini label="Annualised expenses" value={rm(tax.estimated_annual_expenses)} />
+        <Mini label="Taxable income" value={rm(tax.estimated_taxable_income)} />
+        <Mini label="Estimated tax" value={rm(tax.estimated_tax)} accent />
       </div>
       <p className="mt-3 text-xs text-ink/60">
         Bracket: <b>{tax.tax_bracket}</b>. {tax.note}
@@ -278,90 +311,58 @@ function Mini({ label, value, accent }: { label: string; value: string; accent?:
 }
 
 function StrategyChat({ reportId }: { reportId: string }) {
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    {
-      role: 'assistant',
-      content:
-        'Tanya saya apa-apa pasal menu anda. Contoh: "Kalau saya naikkan harga nasi lemak 50 sen?"',
-    },
-  ]);
-  const [quick, setQuick] = useState<string[]>([
-    'Kalau saya naikkan harga 50 sen?',
-    'Item mana paling untung?',
-    'Patut buang mana?',
-  ]);
-  const [input, setInput] = useState('');
+  const { t, dict } = useI18n();
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [quick, setQuick] = useState<string[]>(dict.chat.emptySuggestions);
   const [busy, setBusy] = useState(false);
 
   async function send(content: string) {
     if (!content.trim() || busy) return;
-    const next = [...messages, { role: 'user' as const, content }];
+    const next: ChatMsg[] = [...messages, { role: 'user', content }];
     setMessages(next);
-    setInput('');
     setBusy(true);
     try {
-      const r = await api.post<ChatReply>(`/api/chat/strategy/${reportId}`, { content });
+      const r = await api.post<{ assistant_message: { content: string }; quick_replies: string[] }>(
+        `/api/chat/strategy/${reportId}`,
+        { content },
+      );
       setMessages([...next, { role: 'assistant', content: r.assistant_message.content }]);
       setQuick(r.quick_replies || []);
     } catch (err) {
-      setMessages([
-        ...next,
-        { role: 'assistant', content: 'Maaf, Kira ada masalah buat kiraan sekarang.' },
-      ]);
+      setMessages([...next, { role: 'assistant', content: messageForApiError(err, t) }]);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="overflow-hidden rounded-3xl bg-white shadow-card">
-      <div className="bg-primary px-5 py-4 text-white">
-        <p className="font-bold">Tanya: "Kalau saya...?"</p>
-        <p className="text-xs opacity-80">· Kira sedia menjawab</p>
-      </div>
-      <div className="space-y-3 bg-bg p-5 min-h-[260px]">
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'flex justify-end' : ''}>
-            <div className={m.role === 'assistant' ? 'sage-bubble max-w-[80%]' : 'user-bubble max-w-[80%]'}>
-              {m.content}
-            </div>
-          </div>
-        ))}
-      </div>
+    <div>
+      <h2 className="mb-3 font-serif text-xl font-bold text-primary">Ask Kira: "What if…?"</h2>
+      <ChatPanel messages={messages} quickReplies={quick} onSend={send} busy={busy} />
+    </div>
+  );
+}
 
-      {quick.length > 0 && (
-        <div className="flex flex-wrap gap-2 border-t border-primary/10 bg-white px-5 py-3">
-          {quick.map((q) => (
-            <button key={q} onClick={() => send(q)} className="chip text-sm">
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 border-t border-primary/10 bg-white px-4 py-3">
-        <input
-          className="input flex-1"
-          placeholder="Tanya apa-apa…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && send(input)}
-          disabled={busy}
-        />
-        <button
-          onClick={() => send(input)}
-          disabled={busy || !input.trim()}
-          className="btn-primary px-4 py-3"
-          aria-label="Hantar"
-        >
-          →
-        </button>
+function GuestSignupPrompt() {
+  const { t } = useI18n();
+  return (
+    <div className="rounded-3xl border-2 border-accent bg-accent/10 p-6 text-ink">
+      <h2 className="font-serif text-2xl font-bold text-primary">{t('upload.signupPromptTitle')}</h2>
+      <p className="mt-2 text-ink">{t('upload.signupPromptBody')}</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link href="/signup" className="btn-primary">
+          {t('upload.signupPromptCta')} →
+        </Link>
+        <Link href="/login" className="btn-ghost">
+          {t('nav.login')}
+        </Link>
       </div>
     </div>
   );
 }
 
 function ExportBar({ report }: { report: Report }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [sending, setSending] = useState<'email' | 'whatsapp' | null>(null);
@@ -374,17 +375,17 @@ function ExportBar({ report }: { report: Report }) {
     setNote(null);
     try {
       await api.post(`/api/reports/${report.id}/send/${kind}`, { destination });
-      setNote('✔ Dihantar.');
+      setNote('✔ Sent.');
     } catch (err) {
-      setNote(err instanceof ApiError ? `Gagal: ${err.message}` : 'Gagal hantar.');
+      setNote(err instanceof ApiError ? messageForApiError(err, t) : t('errors.generic'));
     } finally {
       setSending(null);
     }
   }
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-card">
-      <h2 className="font-serif text-xl font-bold text-primary">Eksport &amp; kongsi</h2>
+    <div className="rounded-2xl bg-[rgb(var(--color-card))] p-5 shadow-card">
+      <h2 className="font-serif text-xl font-bold text-primary">Export & share</h2>
       <div className="mt-3 flex flex-wrap gap-3">
         <a className="btn-ghost" href={`/api/reports/${report.id}/export/pdf`} download>
           ⬇ PDF
@@ -416,7 +417,7 @@ function ExportBar({ report }: { report: Report }) {
         <div className="flex gap-2">
           <input
             type="tel"
-            placeholder="+60 12 345 6789"
+            placeholder="+60123456789"
             className="input"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
