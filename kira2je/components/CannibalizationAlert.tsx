@@ -1,4 +1,7 @@
+'use client';
+
 import type { Cannibalization } from '@/lib/schemas';
+import { useT } from '@/lib/i18n/client';
 
 export function CannibalizationAlert({
   data,
@@ -7,11 +10,14 @@ export function CannibalizationAlert({
   data: Cannibalization;
   narrative: string | null;
 }) {
+  const t = useT();
   if (!data.detected) return null;
   const before = data.volumeBefore ?? 0;
   const after = data.volumeAfter ?? 0;
   const max = Math.max(before, after, 1);
   const net = data.netMonthlyImpactRm ?? 0;
+  const victim = data.victimItem ?? '';
+  const culprit = data.culpritItem ?? '';
 
   return (
     <div className="rounded-card border-2 border-kira-red bg-white p-5">
@@ -20,9 +26,9 @@ export function CannibalizationAlert({
           <span className="text-kira-red text-xl font-bold">!</span>
         </div>
         <div>
-          <h3 className="serif text-xl text-kira-red">Tanda kanibalisasi dikesan</h3>
+          <h3 className="serif text-xl text-kira-red">{t('cannibalization.title')}</h3>
           <p className="text-sm text-kira-muted">
-            {data.culpritItem} menarik jualan dari {data.victimItem}
+            {t('cannibalization.subtitle', { culprit, victim })}
           </p>
         </div>
       </div>
@@ -30,8 +36,8 @@ export function CannibalizationAlert({
       <div className="space-y-3 mb-4">
         <div>
           <div className="flex justify-between text-xs text-kira-muted mb-1">
-            <span>{data.victimItem} — sebelum</span>
-            <span className="tabular-nums">{before}/hari</span>
+            <span>{t('cannibalization.before', { victim })}</span>
+            <span className="tabular-nums">{t('cannibalization.perDay', { n: before })}</span>
           </div>
           <div className="bar-track">
             <div
@@ -42,8 +48,8 @@ export function CannibalizationAlert({
         </div>
         <div>
           <div className="flex justify-between text-xs text-kira-muted mb-1">
-            <span>{data.victimItem} — sekarang</span>
-            <span className="tabular-nums">{after}/hari</span>
+            <span>{t('cannibalization.after', { victim })}</span>
+            <span className="tabular-nums">{t('cannibalization.perDay', { n: after })}</span>
           </div>
           <div className="bar-track">
             <div
@@ -55,7 +61,7 @@ export function CannibalizationAlert({
       </div>
 
       <div className="bg-kira-cream rounded-btn px-4 py-3">
-        <div className="text-xs text-kira-muted">Net impact bulanan</div>
+        <div className="text-xs text-kira-muted">{t('cannibalization.netImpactLabel')}</div>
         <div className={`serif text-2xl ${net >= 0 ? 'text-kira-teal' : 'text-kira-red'}`}>
           {net >= 0 ? '+' : '−'}RM{Math.abs(net).toLocaleString()}
         </div>

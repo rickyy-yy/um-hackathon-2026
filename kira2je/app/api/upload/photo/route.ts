@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { llm } from '@/lib/llm';
 import { computeAnalytics } from '@/lib/analytics';
+import { getLocale } from '@/lib/i18n/server';
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -62,9 +63,10 @@ export async function POST(req: Request) {
   });
 
   const analytics = await computeAnalytics(session.userId);
+  const locale = await getLocale();
   let narration = null;
   try {
-    narration = await llm({ task: 'report', analytics });
+    narration = await llm({ task: 'report', analytics, locale });
   } catch {
     // non-fatal; dashboard will retry
   }
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
       userId: session.userId,
       dateRangeFrom: new Date(analytics.dateRangeFrom),
       dateRangeTo: new Date(analytics.dateRangeTo),
-      reportData: JSON.stringify({ analytics, narration }),
+      reportData: JSON.stringify({ analytics, narration, narrationLocale: locale }),
     },
   });
 

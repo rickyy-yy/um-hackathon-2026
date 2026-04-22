@@ -1,4 +1,7 @@
+'use client';
+
 import type { StatusPill as StatusPillT } from '@/lib/schemas';
+import { useT } from '@/lib/i18n/client';
 
 const CLASS: Record<StatusPillT, string> = {
   Top: 'pill pill-top',
@@ -8,5 +11,6 @@ const CLASS: Record<StatusPillT, string> = {
 };
 
 export function StatusPill({ status }: { status: StatusPillT }) {
-  return <span className={CLASS[status]}>{status}</span>;
+  const t = useT();
+  return <span className={CLASS[status]}>{t(`status.${status}` as const)}</span>;
 }

@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { llm } from '@/lib/llm';
+import { getLocale } from '@/lib/i18n/server';
 import { AnalyticsResult, FullReport } from '@/lib/schemas';
+import type { Locale } from '@/lib/i18n/dictionary';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getSession();
@@ -13,13 +15,24 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
   }
 
-  const parsed = JSON.parse(report.reportData) as { analytics: AnalyticsResult; narration: unknown };
+  const locale = await getLocale();
+  const parsed = JSON.parse(report.reportData) as {
+    analytics: AnalyticsResult;
+    narration: unknown;
+    narrationLocale?: Locale;
+  };
   let narration = parsed.narration;
-  if (!narration) {
-    narration = await llm({ task: 'report', analytics: parsed.analytics });
+  if (!narration || parsed.narrationLocale !== locale) {
+    narration = await llm({ task: 'report', analytics: parsed.analytics, locale });
     await prisma.report.update({
       where: { id: report.id },
-      data: { reportData: JSON.stringify({ analytics: parsed.analytics, narration }) },
+      data: {
+        reportData: JSON.stringify({
+          analytics: parsed.analytics,
+          narration,
+          narrationLocale: locale,
+        }),
+      },
     });
   }
 

@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/i18n/client';
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useT();
   const [phone, setPhone] = useState('12-345 6789');
   const [otp, setOtp] = useState('');
   const [stage, setStage] = useState<'phone' | 'otp'>('phone');
@@ -21,7 +23,7 @@ export default function LoginPage() {
     });
     const j = await r.json();
     setLoading(false);
-    if (!j.ok) return setError(j.error || 'Ada masalah');
+    if (!j.ok) return setError(j.error || t('common.error'));
     setStage('otp');
   }
 
@@ -35,7 +37,7 @@ export default function LoginPage() {
     });
     const j = await r.json();
     setLoading(false);
-    if (!j.ok) return setError(j.error || 'OTP salah');
+    if (!j.ok) return setError(j.error || t('login.errorInvalidOtp'));
     if (j.hasReport) router.push(`/dashboard?reportId=${j.reportId}`);
     else router.push('/onboarding');
   }
@@ -44,15 +46,19 @@ export default function LoginPage() {
     <main className="min-h-screen flex flex-col px-6 pt-16 pb-10">
       <div className="flex-1 flex flex-col justify-center">
         <div className="text-center mb-10">
-          <h1 className="serif text-5xl text-kira-teal mb-2">Kira2 je</h1>
-          <p className="text-kira-muted">Faham menu anda dalam 5 minit</p>
+          <h1 className="serif text-5xl text-kira-teal mb-2">{t('app.title')}</h1>
+          <p className="text-kira-muted">{t('app.tagline')}</p>
         </div>
 
         {stage === 'phone' ? (
           <div className="card">
-            <label className="block text-sm text-kira-muted mb-2">Nombor telefon</label>
+            <label className="block text-sm text-kira-muted mb-2">
+              {t('login.phoneLabel')}
+            </label>
             <div className="flex items-center gap-2">
-              <div className="bg-kira-sage/50 rounded-btn px-4 py-3 font-semibold text-kira-dark">+60</div>
+              <div className="bg-kira-sage/50 rounded-btn px-4 py-3 font-semibold text-kira-dark">
+                +60
+              </div>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -61,35 +67,35 @@ export default function LoginPage() {
                 placeholder="12-345 6789"
               />
             </div>
-            <p className="text-xs text-kira-muted mt-3">
-              Kami akan hantar kod 6 digit ke nombor ini.
-            </p>
+            <p className="text-xs text-kira-muted mt-3">{t('login.phoneHint')}</p>
             <button
               onClick={sendOtp}
               disabled={loading}
               className="btn-primary w-full mt-5"
             >
-              {loading ? 'Menghantar...' : 'Hantar kod'}
+              {loading ? t('login.sending') : t('login.sendCode')}
             </button>
           </div>
         ) : (
           <div className="card">
-            <label className="block text-sm text-kira-muted mb-2">Kod OTP</label>
+            <label className="block text-sm text-kira-muted mb-2">
+              {t('login.otpLabel')}
+            </label>
             <input
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
               inputMode="numeric"
               className="input text-center text-2xl tracking-[0.5em] font-semibold"
-              placeholder="••••••"
+              placeholder={t('login.otpPlaceholder')}
               autoFocus
             />
-            <p className="text-xs text-kira-muted mt-3">Demo: masukkan apa-apa 6 digit</p>
+            <p className="text-xs text-kira-muted mt-3">{t('login.otpHint')}</p>
             <button
               onClick={verifyOtp}
               disabled={loading || otp.length !== 6}
               className="btn-primary w-full mt-5 disabled:opacity-50"
             >
-              {loading ? 'Menyemak...' : 'Masuk'}
+              {loading ? t('login.checking') : t('login.submit')}
             </button>
             <button
               onClick={() => {
@@ -99,14 +105,14 @@ export default function LoginPage() {
               }}
               className="w-full mt-3 text-sm text-kira-muted underline"
             >
-              Tukar nombor
+              {t('login.changeNumber')}
             </button>
           </div>
         )}
         {error && <p className="mt-4 text-sm text-kira-red text-center">{error}</p>}
       </div>
       <footer className="text-center text-xs text-kira-muted">
-        Untuk perniagaan makanan kecil di Malaysia
+        {t('app.footer')}
       </footer>
     </main>
   );

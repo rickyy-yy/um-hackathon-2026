@@ -3,24 +3,27 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useT, useLocale } from '@/lib/i18n/client';
 import type { WhatIfAnswer } from '@/lib/schemas';
 
 type Turn = { id: string; question: string; answer: WhatIfAnswer };
 
-const SUGGESTIONS = [
-  'Kalau saya buang salted egg?',
-  'Kalau saya naikkan semua harga 50 sen?',
-  'Kalau saya keluarkan Milo dari GrabFood?',
-  'Kalau saya tambah menu baru?',
-];
-
 function WhatIfInner() {
   const sp = useSearchParams();
+  const t = useT();
+  const locale = useLocale();
   const reportId = sp.get('reportId') ?? '';
   const [turns, setTurns] = useState<Turn[]>([]);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = [
+    t('whatif.suggestion1'),
+    t('whatif.suggestion2'),
+    t('whatif.suggestion3'),
+    t('whatif.suggestion4'),
+  ];
 
   useEffect(() => {
     if (!reportId) return;
@@ -41,18 +44,20 @@ function WhatIfInner() {
     const res = await fetch('/api/chat/whatif', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ reportId, question: q }),
+      body: JSON.stringify({ reportId, question: q, locale }),
     });
     const j = await res.json();
     setLoading(false);
     if (j.ok) {
-      setTurns((t) => [
-        ...t,
+      setTurns((tr) => [
+        ...tr,
         { id: Math.random().toString(36).slice(2), question: q, answer: j.answer },
       ]);
       setQuestion('');
     }
   }
+
+  const monthSuffix = t('common.rmAmountSuffix');
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -61,8 +66,8 @@ function WhatIfInner() {
           ←
         </Link>
         <div>
-          <h1 className="serif text-xl leading-tight">Kalau saya...?</h1>
-          <p className="text-xs opacity-80">Kira2 je akan fikir untuk anda</p>
+          <h1 className="serif text-xl leading-tight">{t('whatif.title')}</h1>
+          <p className="text-xs opacity-80">{t('whatif.subtitle')}</p>
         </div>
       </header>
 
@@ -70,9 +75,9 @@ function WhatIfInner() {
         {turns.length === 0 && (
           <div className="space-y-2">
             <p className="text-sm text-kira-muted text-center mb-3">
-              Pilih soalan atau tulis sendiri:
+              {t('whatif.suggestions')}
             </p>
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <button
                 key={s}
                 onClick={() => ask(s)}
@@ -84,32 +89,33 @@ function WhatIfInner() {
           </div>
         )}
 
-        {turns.map((t) => (
-          <div key={t.id} className="space-y-3">
+        {turns.map((tr) => (
+          <div key={tr.id} className="space-y-3">
             <div className="flex justify-end">
               <div className="bg-white rounded-card rounded-br-sm px-4 py-3 max-w-[85%] text-sm">
-                {t.question}
+                {tr.question}
               </div>
             </div>
             <div>
               <div className="bg-kira-sage rounded-card rounded-bl-sm px-4 py-3 text-sm leading-relaxed">
-                {t.answer.answer}
+                {tr.answer.answer}
               </div>
-              {(t.answer.projectedDeltaRm != null || t.answer.risks.length > 0) && (
+              {(tr.answer.projectedDeltaRm != null || tr.answer.risks.length > 0) && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {t.answer.projectedDeltaRm != null && (
+                  {tr.answer.projectedDeltaRm != null && (
                     <div
                       className={`text-xs font-semibold rounded-btn px-3 py-1.5 ${
-                        t.answer.projectedDeltaRm >= 0
+                        tr.answer.projectedDeltaRm >= 0
                           ? 'bg-kira-yellow text-kira-dark'
                           : 'bg-kira-red/15 text-kira-red'
                       }`}
                     >
-                      {t.answer.projectedDeltaRm >= 0 ? '+' : '−'}RM
-                      {Math.abs(t.answer.projectedDeltaRm).toLocaleString()}/bulan
+                      {tr.answer.projectedDeltaRm >= 0 ? '+' : '−'}RM
+                      {Math.abs(tr.answer.projectedDeltaRm).toLocaleString()}
+                      {monthSuffix}
                     </div>
                   )}
-                  {t.answer.risks.map((r, i) => (
+                  {tr.answer.risks.map((r, i) => (
                     <div
                       key={i}
                       className="text-xs text-kira-muted bg-white rounded-btn px-3 py-1.5"
@@ -128,7 +134,7 @@ function WhatIfInner() {
             <div className="w-2 h-2 rounded-full bg-kira-teal animate-pulse" />
             <div className="w-2 h-2 rounded-full bg-kira-teal animate-pulse [animation-delay:0.2s]" />
             <div className="w-2 h-2 rounded-full bg-kira-teal animate-pulse [animation-delay:0.4s]" />
-            <span className="ml-2">Kira2 je sedang fikir...</span>
+            <span className="ml-2">{t('whatif.thinking')}</span>
           </div>
         )}
         <div ref={bottomRef} />
@@ -145,7 +151,7 @@ function WhatIfInner() {
           <input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Kalau saya..."
+            placeholder={t('whatif.placeholder')}
             className="input flex-1"
             disabled={loading}
           />
@@ -154,7 +160,7 @@ function WhatIfInner() {
             disabled={loading || question.trim().length < 4}
             className="btn-primary disabled:opacity-50"
           >
-            Tanya
+            {t('whatif.ask')}
           </button>
         </div>
       </form>
@@ -164,7 +170,7 @@ function WhatIfInner() {
 
 export default function WhatIfPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-kira-muted">Memuatkan...</div>}>
+    <Suspense fallback={<div className="p-8 text-kira-muted">Loading...</div>}>
       <WhatIfInner />
     </Suspense>
   );

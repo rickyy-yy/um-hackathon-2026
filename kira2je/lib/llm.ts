@@ -7,14 +7,21 @@ import {
   ReportNarration,
   WhatIfAnswer,
 } from './schemas';
-import { ocrPrompt, followupPrompt, reportPrompt, whatIfPrompt, SYSTEM_BM } from './prompts';
+import {
+  ocrPrompt,
+  followupPrompt,
+  reportPrompt,
+  whatIfPrompt,
+  systemPrompt,
+} from './prompts';
 import * as mocks from './mocks';
+import type { Locale } from './i18n/dictionary';
 
 type LlmTask =
-  | { task: 'ocr'; imageBase64: string; mimeType: string }
-  | { task: 'followup'; turnIndex: number; extracted: unknown; askedSoFar: string[] }
-  | { task: 'report'; analytics: AnalyticsResult }
-  | { task: 'whatif'; report: FullReport; question: string };
+  | { task: 'ocr'; imageBase64: string; mimeType: string; locale?: Locale }
+  | { task: 'followup'; turnIndex: number; extracted: unknown; askedSoFar: string[]; locale?: Locale }
+  | { task: 'report'; analytics: AnalyticsResult; locale?: Locale }
+  | { task: 'whatif'; report: FullReport; question: string; locale?: Locale };
 
 export type LlmResult<T extends LlmTask['task']> = T extends 'ocr'
   ? OcrExtraction
@@ -85,18 +92,22 @@ async function chatJson<T>(
 }
 
 export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task']>> {
+  const locale: Locale = args.locale ?? 'ms';
+
   if (isMockMode()) {
     switch (args.task) {
       case 'ocr':
         return mocks.mockOcr() as LlmResult<T['task']>;
       case 'followup':
-        return mocks.mockFollowup(args.turnIndex) as LlmResult<T['task']>;
+        return mocks.mockFollowup(args.turnIndex, locale) as LlmResult<T['task']>;
       case 'report':
-        return mocks.mockReport(args.analytics) as LlmResult<T['task']>;
+        return mocks.mockReport(args.analytics, locale) as LlmResult<T['task']>;
       case 'whatif':
-        return mocks.mockWhatIf(args.question, args.report) as LlmResult<T['task']>;
+        return mocks.mockWhatIf(args.question, args.report, locale) as LlmResult<T['task']>;
     }
   }
+
+  const systemMsg = systemPrompt(locale);
 
   switch (args.task) {
     case 'ocr': {
@@ -106,11 +117,11 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
             model: process.env.LLM_MODEL || 'gpt-4o-mini',
             response_format: { type: 'json_object' },
             messages: [
-              { role: 'system', content: SYSTEM_BM },
+              { role: 'system', content: systemMsg },
               {
                 role: 'user',
                 content: [
-                  { type: 'text', text: ocrPrompt() },
+                  { type: 'text', text: ocrPrompt(locale) },
                   {
                     type: 'image_url',
                     image_url: { url: `data:${args.mimeType};base64,${args.imageBase64}` },
@@ -127,8 +138,8 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
     case 'followup': {
       const raw = await chatJson<unknown>(
         [
-          { role: 'system', content: SYSTEM_BM },
-          { role: 'user', content: followupPrompt(args.extracted, args.askedSoFar) },
+          { role: 'system', content: systemMsg },
+          { role: 'user', content: followupPrompt(args.extracted, args.askedSoFar, locale) },
         ],
         'followup'
       );
@@ -137,8 +148,8 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
     case 'report': {
       const raw = await chatJson<unknown>(
         [
-          { role: 'system', content: SYSTEM_BM },
-          { role: 'user', content: reportPrompt(args.analytics) },
+          { role: 'system', content: systemMsg },
+          { role: 'user', content: reportPrompt(args.analytics, locale) },
         ],
         'report'
       );
@@ -147,8 +158,8 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
     case 'whatif': {
       const raw = await chatJson<unknown>(
         [
-          { role: 'system', content: SYSTEM_BM },
-          { role: 'user', content: whatIfPrompt(args.report, args.question) },
+          { role: 'system', content: systemMsg },
+          { role: 'user', content: whatIfPrompt(args.report, args.question, locale) },
         ],
         'whatif'
       );

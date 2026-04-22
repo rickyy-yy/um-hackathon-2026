@@ -61,7 +61,7 @@ async function main() {
   // ever fails (dashboard keeps a null-narration safety net).
   let narration = null;
   try {
-    narration = await llm({ task: 'report', analytics });
+    narration = await llm({ task: 'report', analytics, locale: 'ms' });
   } catch (e) {
     console.warn('Narration pre-gen failed, dashboard will retry:', e);
   }
@@ -71,7 +71,7 @@ async function main() {
       userId: aminah.id,
       dateRangeFrom: new Date(analytics.dateRangeFrom),
       dateRangeTo: new Date(analytics.dateRangeTo),
-      reportData: JSON.stringify({ analytics, narration }),
+      reportData: JSON.stringify({ analytics, narration, narrationLocale: 'ms' }),
     },
   });
 

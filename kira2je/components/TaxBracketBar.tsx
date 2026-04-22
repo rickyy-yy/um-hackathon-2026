@@ -1,14 +1,14 @@
-import { MALAYSIA_TAX_BRACKETS_YA2025 } from '@/lib/tax';
+'use client';
 
-// Horizontal bar showing YA2025 tax brackets with a pin at the user's
-// chargeable income. Scaled so brackets above ~1.5× the user's income
-// (or RM100k minimum) are clipped — keeps the relevant rungs legible
-// without the RM2M+ bracket dominating the view.
+import { MALAYSIA_TAX_BRACKETS_YA2025 } from '@/lib/tax';
+import { useT } from '@/lib/i18n/client';
+
 export function TaxBracketBar({
   chargeableIncome,
 }: {
   chargeableIncome: number;
 }) {
+  const t = useT();
   const showUpTo = Math.max(100_000, chargeableIncome * 1.5);
 
   type Seg = { rate: number; min: number; max: number; width: number };
@@ -35,7 +35,7 @@ export function TaxBracketBar({
 
   return (
     <div>
-      <div className="text-sm font-semibold mb-2">Kadar cukai anda</div>
+      <div className="text-sm font-semibold mb-2">{t('tax.bracketTitle')}</div>
 
       <div className="relative h-9 rounded-full overflow-hidden flex">
         {segments.map((s, i) => (
@@ -47,7 +47,9 @@ export function TaxBracketBar({
               background: segmentColor(s.rate),
               color: s.rate <= 0.06 ? '#1A2E28' : 'white',
             }}
-            title={`${Math.round(s.rate * 100)}%: RM${s.min.toLocaleString()} – RM${s.max === Infinity ? '∞' : s.max.toLocaleString()}`}
+            title={`${Math.round(s.rate * 100)}%: RM${s.min.toLocaleString()} – RM${
+              s.max === Infinity ? '∞' : s.max.toLocaleString()
+            }`}
           >
             {Math.round(s.rate * 100)}%
           </div>
@@ -55,7 +57,7 @@ export function TaxBracketBar({
         <div
           className="absolute top-[-4px] bottom-[-4px] w-[3px] bg-kira-dark rounded-full shadow-lg"
           style={{ left: `calc(${userPct * 100}% - 1.5px)` }}
-          aria-label="Kedudukan anda"
+          aria-label="position"
         />
         <div
           className="absolute -top-6 text-[10px] text-kira-dark font-semibold whitespace-nowrap"
@@ -64,7 +66,7 @@ export function TaxBracketBar({
             transform: 'translateX(-50%)',
           }}
         >
-          ▼ anda
+          {t('tax.youAreHere')}
         </div>
       </div>
 
@@ -75,13 +77,14 @@ export function TaxBracketBar({
 
       {current && (
         <p className="text-sm mt-3 leading-relaxed">
-          Anda sekarang dalam kadar{' '}
-          <strong>{Math.round(current.rate * 100)}%</strong>
+          {t('tax.currentRate')} <strong>{Math.round(current.rate * 100)}%</strong>
           {next && next.rate > current.rate && (
             <>
-              . Kadar seterusnya ({Math.round(next.rate * 100)}%) bermula pada
-              RM{next.min.toLocaleString()} — RM
-              {(next.min - chargeableIncome).toLocaleString()} lagi.
+              {t('tax.nextRate', {
+                rate: Math.round(next.rate * 100),
+                min: next.min.toLocaleString(),
+                gap: (next.min - chargeableIncome).toLocaleString(),
+              })}
             </>
           )}
         </p>

@@ -1,9 +1,12 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { getLocale } from '@/lib/i18n/server';
+import { LocaleProvider } from '@/lib/i18n/client';
+import { LanguageToggle } from '@/components/LanguageToggle';
 
 export const metadata: Metadata = {
-  title: 'Kira2 je — Faham menu anda dalam 5 minit',
-  description: 'Penasihat menu AI untuk kedai makan Malaysia',
+  title: 'Kira2 je',
+  description: 'AI menu profitability strategist for Malaysian F&B',
 };
 
 export const viewport: Viewport = {
@@ -13,11 +16,17 @@ export const viewport: Viewport = {
   themeColor: '#0F6E56',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang="ms">
+    <html lang={locale}>
       <body className="bg-kira-cream text-kira-dark">
-        <div className="mx-auto max-w-md min-h-screen">{children}</div>
+        <LocaleProvider locale={locale}>
+          <div className="mx-auto max-w-md min-h-screen relative">
+            <LanguageToggle />
+            {children}
+          </div>
+        </LocaleProvider>
       </body>
     </html>
   );

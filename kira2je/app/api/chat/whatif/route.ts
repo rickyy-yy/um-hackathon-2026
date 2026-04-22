@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { llm } from '@/lib/llm';
+import { getLocale } from '@/lib/i18n/server';
 import type { FullReport } from '@/lib/schemas';
 
 export async function POST(req: Request) {
@@ -26,7 +27,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'Laporan belum siap' }, { status: 400 });
   }
 
-  const answer = await llm({ task: 'whatif', report: full, question });
+  const locale = await getLocale();
+  const answer = await llm({ task: 'whatif', report: full, question, locale });
 
   await prisma.whatIfTurn.create({
     data: {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
+import { useT } from '@/lib/i18n/client';
 
 type Row = {
   item: string;
@@ -17,6 +18,7 @@ type Row = {
 
 export default function UploadCsv() {
   const router = useRouter();
+  const t = useT();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export default function UploadCsv() {
           (r) => r && r.item && typeof r.price === 'number' && typeof r.quantity === 'number'
         );
         if (parsed.length === 0) {
-          setError('Fail kosong atau format tak dikenali. Perlu lajur: item, price, quantity, date.');
+          setError(t('upload.csvError'));
           return;
         }
         setRows(parsed);
@@ -67,7 +69,7 @@ export default function UploadCsv() {
     const j = await res.json();
     setUploading(false);
     if (!j.ok) {
-      setError(j.error || 'Gagal memproses fail');
+      setError(j.error || t('common.error'));
       return;
     }
     router.push(`/processing?reportId=${j.reportId}`);
@@ -79,7 +81,7 @@ export default function UploadCsv() {
         <Link href="/onboarding" className="text-kira-dark text-xl">
           ←
         </Link>
-        <h1 className="serif text-2xl">Muat naik fail POS</h1>
+        <h1 className="serif text-2xl">{t('upload.csvTitle')}</h1>
       </div>
 
       {!rows ? (
@@ -92,33 +94,26 @@ export default function UploadCsv() {
               className="hidden"
             />
             <div className="text-4xl mb-3">📄</div>
-            <div className="font-semibold mb-1">Pilih fail CSV atau Excel</div>
-            <div className="text-sm text-kira-muted">
-              Format: item, price, quantity, date
-            </div>
+            <div className="font-semibold mb-1">{t('upload.csvPicker')}</div>
+            <div className="text-sm text-kira-muted">{t('upload.csvFormat')}</div>
           </label>
 
-          <button
-            onClick={loadSample}
-            className="btn-ghost w-full"
-          >
-            Atau guna data contoh Warung Aminah
+          <button onClick={loadSample} className="btn-ghost w-full">
+            {t('upload.csvUseSample')}
           </button>
 
-          <div className="text-xs text-kira-muted text-center leading-relaxed">
-            Kami sokong export dari StoreHub, Slurp, Qashier.
-            <br />
-            Data anda disimpan dengan selamat di peranti ini.
+          <div className="text-xs text-kira-muted text-center leading-relaxed whitespace-pre-line">
+            {t('upload.csvFooter')}
           </div>
         </div>
       ) : (
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-xs text-kira-muted">Fail</div>
+              <div className="text-xs text-kira-muted">{t('upload.csvFileLabel')}</div>
               <div className="font-medium">{filename}</div>
               <div className="text-xs text-kira-muted mt-1">
-                {rows.length} baris dikesan
+                {t('upload.csvRowsDetected', { n: rows.length })}
               </div>
             </div>
             <button
@@ -128,7 +123,7 @@ export default function UploadCsv() {
               }}
               className="text-sm text-kira-muted underline"
             >
-              Tukar fail
+              {t('upload.csvChangeFile')}
             </button>
           </div>
 
@@ -136,10 +131,10 @@ export default function UploadCsv() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-kira-muted">
-                  <th className="px-2 py-2">Item</th>
-                  <th className="px-2 py-2 text-right">Harga</th>
-                  <th className="px-2 py-2 text-right">Qty</th>
-                  <th className="px-2 py-2">Tarikh</th>
+                  <th className="px-2 py-2">{t('upload.csvPreviewItem')}</th>
+                  <th className="px-2 py-2 text-right">{t('upload.csvPreviewPrice')}</th>
+                  <th className="px-2 py-2 text-right">{t('upload.csvPreviewQty')}</th>
+                  <th className="px-2 py-2">{t('upload.csvPreviewDate')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -156,7 +151,7 @@ export default function UploadCsv() {
                 {rows.length > 8 && (
                   <tr>
                     <td colSpan={4} className="px-2 py-2 text-center text-kira-muted">
-                      +{rows.length - 8} baris lagi
+                      {t('upload.csvMoreRows', { n: rows.length - 8 })}
                     </td>
                   </tr>
                 )}
@@ -164,12 +159,8 @@ export default function UploadCsv() {
             </table>
           </div>
 
-          <button
-            onClick={submit}
-            disabled={uploading}
-            className="btn-primary w-full"
-          >
-            {uploading ? 'Menghantar...' : 'Hantar'}
+          <button onClick={submit} disabled={uploading} className="btn-primary w-full">
+            {uploading ? t('upload.csvSubmitting') : t('upload.csvSubmit')}
           </button>
         </div>
       )}

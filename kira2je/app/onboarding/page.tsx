@@ -1,17 +1,17 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
+import { serverT } from '@/lib/i18n/server';
 
 export default async function Onboarding() {
   const session = await getSession();
   if (!session) redirect('/');
+  const { t } = await serverT();
 
   return (
     <main className="px-6 pt-10 pb-16">
-      <h1 className="serif text-3xl text-kira-dark mb-2">Jom mula!</h1>
-      <p className="text-kira-muted mb-8">
-        Macam mana anda catat jualan sekarang?
-      </p>
+      <h1 className="serif text-3xl text-kira-dark mb-2">{t('onboarding.title')}</h1>
+      <p className="text-kira-muted mb-8">{t('onboarding.subtitle')}</p>
 
       <div className="space-y-3">
         <Link
@@ -21,10 +21,8 @@ export default async function Onboarding() {
           <div className="flex items-start gap-4">
             <div className="text-3xl">📁</div>
             <div>
-              <div className="font-semibold mb-1">Ada fail dari POS</div>
-              <div className="text-sm text-kira-muted">
-                Muat naik CSV atau Excel dari StoreHub, Slurp, Qashier, dll.
-              </div>
+              <div className="font-semibold mb-1">{t('onboarding.csvTitle')}</div>
+              <div className="text-sm text-kira-muted">{t('onboarding.csvDesc')}</div>
             </div>
           </div>
         </Link>
@@ -36,10 +34,8 @@ export default async function Onboarding() {
           <div className="flex items-start gap-4">
             <div className="text-3xl">📷</div>
             <div>
-              <div className="font-semibold mb-1">Ada buku / resit</div>
-              <div className="text-sm text-kira-muted">
-                Ambil gambar atau pilih dari galeri. Boleh upload banyak.
-              </div>
+              <div className="font-semibold mb-1">{t('onboarding.photoTitle')}</div>
+              <div className="text-sm text-kira-muted">{t('onboarding.photoDesc')}</div>
             </div>
           </div>
         </Link>
@@ -51,10 +47,8 @@ export default async function Onboarding() {
           <div className="flex items-start gap-4">
             <div className="text-3xl">💬</div>
             <div>
-              <div className="font-semibold mb-1">Saya ingat je</div>
-              <div className="text-sm text-kira-muted">
-                Jawab soalan pendek, kami susun data anda.
-              </div>
+              <div className="font-semibold mb-1">{t('onboarding.chatTitle')}</div>
+              <div className="text-sm text-kira-muted">{t('onboarding.chatDesc')}</div>
             </div>
           </div>
         </Link>
@@ -62,7 +56,7 @@ export default async function Onboarding() {
 
       <div className="mt-8 text-center">
         <Link href="/dashboard" className="text-sm text-kira-muted underline">
-          Lompat ke laporan (jika dah ada data)
+          {t('onboarding.skipToDashboard')}
         </Link>
       </div>
     </main>

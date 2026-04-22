@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/i18n/client';
 
 export default function UploadPhoto() {
   const router = useRouter();
+  const t = useT();
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function UploadPhoto() {
     const j = await res.json();
     setUploading(false);
     if (!j.ok) {
-      setError(j.error || 'Gagal memproses gambar');
+      setError(j.error || t('upload.photoError'));
       return;
     }
     router.push(`/processing?reportId=${j.reportId}`);
@@ -47,7 +49,7 @@ export default function UploadPhoto() {
         <Link href="/onboarding" className="text-kira-dark text-xl">
           ←
         </Link>
-        <h1 className="serif text-2xl">Upload gambar</h1>
+        <h1 className="serif text-2xl">{t('upload.photoTitle')}</h1>
       </div>
 
       <label className="card-sage block text-center cursor-pointer mb-4">
@@ -60,16 +62,14 @@ export default function UploadPhoto() {
           className="hidden"
         />
         <div className="text-4xl mb-3">📷</div>
-        <div className="font-semibold mb-1">Ambil atau pilih gambar</div>
-        <div className="text-sm text-kira-muted">
-          Gambar buku akaun, resit, atau notebook jualan
-        </div>
+        <div className="font-semibold mb-1">{t('upload.photoPicker')}</div>
+        <div className="text-sm text-kira-muted">{t('upload.photoDesc')}</div>
       </label>
 
       {files.length > 0 && (
         <div className="mb-4">
           <div className="text-sm text-kira-muted mb-2">
-            {files.length} gambar dipilih
+            {t('upload.photoSelected', { n: files.length })}
           </div>
           <div className="grid grid-cols-3 gap-2">
             {files.map((f, i) => (
@@ -89,7 +89,7 @@ export default function UploadPhoto() {
         disabled={uploading || files.length === 0}
         className="btn-primary w-full disabled:opacity-50"
       >
-        {uploading ? 'Menganalisis gambar...' : 'Hantar gambar'}
+        {uploading ? t('upload.photoSubmitting') : t('upload.photoSubmit')}
       </button>
 
       {error && <p className="mt-4 text-sm text-kira-red text-center">{error}</p>}

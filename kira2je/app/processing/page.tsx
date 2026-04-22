@@ -2,12 +2,15 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useT, useLocale } from '@/lib/i18n/client';
 
 type ChatMsg = { from: 'ai' | 'user'; text: string };
 
 function ProcessingInner() {
   const router = useRouter();
   const sp = useSearchParams();
+  const t = useT();
+  const locale = useLocale();
   const reportId = sp.get('reportId');
   const [turnIndex, setTurnIndex] = useState(0);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -22,6 +25,7 @@ function ProcessingInner() {
 
   useEffect(() => {
     fetchNext(0, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchNext(idx: number, asked: string[]) {
@@ -29,7 +33,7 @@ function ProcessingInner() {
     const res = await fetch('/api/chat/followup', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ turnIndex: idx, askedSoFar: asked }),
+      body: JSON.stringify({ turnIndex: idx, askedSoFar: asked, locale }),
     });
     const j = await res.json();
     setLoading(false);
@@ -52,14 +56,17 @@ function ProcessingInner() {
     setInput('');
     const nextIdx = turnIndex + 1;
     setTurnIndex(nextIdx);
-    fetchNext(nextIdx, msgs.filter((m) => m.from === 'ai').map((m) => m.text));
+    fetchNext(
+      nextIdx,
+      msgs.filter((m) => m.from === 'ai').map((m) => m.text)
+    );
   }
 
   return (
     <main className="min-h-screen flex flex-col">
       <header className="bg-kira-teal text-white px-5 py-4">
-        <h1 className="serif text-xl">Beberapa soalan pendek</h1>
-        <p className="text-xs opacity-80">Untuk kira margin dan cadangan dengan tepat</p>
+        <h1 className="serif text-xl">{t('processing.title')}</h1>
+        <p className="text-xs opacity-80">{t('processing.subtitle')}</p>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
@@ -67,9 +74,7 @@ function ProcessingInner() {
           <div key={i} className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`rounded-card px-4 py-3 max-w-[85%] text-sm leading-relaxed ${
-                m.from === 'user'
-                  ? 'bg-white rounded-br-sm'
-                  : 'bg-kira-sage rounded-bl-sm'
+                m.from === 'user' ? 'bg-white rounded-br-sm' : 'bg-kira-sage rounded-bl-sm'
               }`}
             >
               {m.text}
@@ -99,12 +104,12 @@ function ProcessingInner() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Taip jawapan..."
+              placeholder={t('chat.placeholder')}
               className="input flex-1"
               disabled={loading}
             />
             <button type="submit" className="btn-primary" disabled={loading || !input.trim()}>
-              Hantar
+              {t('chat.sendLabel')}
             </button>
           </div>
         </form>
@@ -112,7 +117,7 @@ function ProcessingInner() {
 
       {done && (
         <div className="p-4 text-center text-sm text-kira-teal">
-          ✓ Cukup! Menyediakan laporan anda...
+          {t('processing.done')}
         </div>
       )}
     </main>
@@ -121,7 +126,7 @@ function ProcessingInner() {
 
 export default function Processing() {
   return (
-    <Suspense fallback={<div className="p-8 text-kira-muted">Memuatkan...</div>}>
+    <Suspense fallback={<div className="p-8 text-kira-muted">Loading...</div>}>
       <ProcessingInner />
     </Suspense>
   );

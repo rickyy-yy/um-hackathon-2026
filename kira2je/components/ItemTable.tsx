@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import type { ItemPerf } from '@/lib/schemas';
 import { StatusPill } from './StatusPill';
+import { useT } from '@/lib/i18n/client';
 
 type SortKey = 'name' | 'perDay' | 'price' | 'marginRm' | 'status';
 
 export function ItemTable({ items }: { items: ItemPerf[] }) {
+  const t = useT();
   const [sortBy, setSortBy] = useState<SortKey>('marginRm');
   const [asc, setAsc] = useState(false);
 
@@ -33,19 +35,19 @@ export function ItemTable({ items }: { items: ItemPerf[] }) {
         <thead>
           <tr className="text-left text-kira-muted">
             <th onClick={() => toggle('name')} className="px-2 py-2 cursor-pointer font-medium">
-              Item{arrow('name')}
+              {t('dashboard.itemCol')}{arrow('name')}
             </th>
             <th onClick={() => toggle('perDay')} className="px-2 py-2 cursor-pointer font-medium text-right">
-              Jual/hari{arrow('perDay')}
+              {t('dashboard.perDayCol')}{arrow('perDay')}
             </th>
             <th onClick={() => toggle('price')} className="px-2 py-2 cursor-pointer font-medium text-right">
-              Harga{arrow('price')}
+              {t('dashboard.priceCol')}{arrow('price')}
             </th>
             <th onClick={() => toggle('marginRm')} className="px-2 py-2 cursor-pointer font-medium text-right">
-              Margin{arrow('marginRm')}
+              {t('dashboard.marginCol')}{arrow('marginRm')}
             </th>
             <th onClick={() => toggle('status')} className="px-2 py-2 cursor-pointer font-medium">
-              Status{arrow('status')}
+              {t('dashboard.statusCol')}{arrow('status')}
             </th>
           </tr>
         </thead>
