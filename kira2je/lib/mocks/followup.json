@@ -1,0 +1,24 @@
+{
+  "turns": [
+    {
+      "question": "Mak Cik, lebih kurang berapa peratus kos bahan untuk nasi lemak? (Contoh: RM2 kos untuk nasi lemak RM5 = 40%)",
+      "field": "costPercent",
+      "done": false
+    },
+    {
+      "question": "Ada jual kat GrabFood atau Foodpanda? Kalau ada, yang mana satu paling laris?",
+      "field": "deliveryCommission",
+      "done": false
+    },
+    {
+      "question": "Dalam 3 bulan lepas, ada tambah menu baru atau naikkan harga? Kalau ada, bila?",
+      "field": "menuChanges",
+      "done": false
+    },
+    {
+      "question": "Cukup! Menyediakan laporan anda...",
+      "field": "none",
+      "done": true
+    }
+  ]
+}

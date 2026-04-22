@@ -1,0 +1,18 @@
+{
+  "items": [
+    { "name": "Nasi lemak ayam", "quantity": 45, "price": 8.0, "date": "2026-03-20" },
+    { "name": "Nasi lemak biasa", "quantity": 50, "price": 5.0, "date": "2026-03-20" },
+    { "name": "Nasi lemak salted egg", "quantity": 35, "price": 12.0, "date": "2026-03-20" },
+    { "name": "Mee goreng", "quantity": 30, "price": 7.0, "date": "2026-03-20" },
+    { "name": "Teh tarik", "quantity": 60, "price": 2.5, "date": "2026-03-20" },
+    { "name": "Milo dinosaur", "quantity": 25, "price": 5.0, "date": "2026-03-20" },
+    { "name": "Roti bakar", "quantity": 20, "price": 3.5, "date": "2026-03-20" },
+    { "name": "Nasi goreng kampung", "quantity": 25, "price": 7.5, "date": "2026-03-20" },
+    { "name": "Teh O ais", "quantity": 40, "price": 2.0, "date": "2026-03-20" },
+    { "name": "Maggi goreng", "quantity": 15, "price": 6.0, "date": "2026-03-20" },
+    { "name": "Kuih-muih", "quantity": 30, "price": 1.5, "date": "2026-03-20" },
+    { "name": "Air sirap", "quantity": 20, "price": 2.0, "date": "2026-03-20" }
+  ],
+  "confidence": "high",
+  "missingInfo": ["Tarikh mula jual salted egg tak pasti"]
+}

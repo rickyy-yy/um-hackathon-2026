@@ -1,0 +1,45 @@
+{
+  "answers": [
+    {
+      "pattern": "grab|foodpanda|deliver|milo",
+      "answer": "Milo Dinosaur Mak Cik di GrabFood sekarang rugi — untung cuma RM0.80 setiap satu lepas komisyen 30%. Tiga pilihan: (1) Naikkan harga di Grab jadi RM6.50 (pelanggan delivery biasanya sanggup bayar lebih 20-30% sebab convenience) — impact +RM750/bulan. (2) Keluarkan Milo Dinosaur dari Grab, jual dine-in sahaja — tak rugi tapi tak untung banyak. (3) Buat combo Milo + roti bakar di Grab pada RM9 (margin lebih baik sebab sebaran kos). Pilihan 1 paling senang dan cepat.",
+      "projectedDeltaRm": 750,
+      "risks": ["Pelanggan delivery mungkin kurang kalau rasa harga terlalu tinggi"]
+    },
+    {
+      "pattern": "salted egg|kanibal",
+      "answer": "Hmm, kalau Mak Cik buang salted egg, tiga perkara akan jadi: (1) Pelanggan yang sekarang order salted egg (35/hari) mungkin separuh balik order nasi lemak biasa, separuh lagi pergi tempat lain. (2) Untung RM6,048/bulan dari salted egg akan hilang, tapi untung dari nasi lemak biasa naik balik RM2,925/bulan. (3) Net: untung TURUN sekitar RM3,123/bulan. Cadangan saya: jangan buang, tapi naikkan harga salted egg RM1 dan kekal nasi lemak biasa sebagai pilihan murah. Kawan-kawan premium bayar lebih, pelanggan biasa tak lari.",
+      "projectedDeltaRm": -3123,
+      "risks": ["Kehilangan pelanggan baru yang suka salted egg", "Menu jadi kurang menarik di media sosial"]
+    },
+    {
+      "pattern": "naik.{0,15}harga|tambah.{0,10}harga|tinggikan",
+      "answer": "Kalau Mak Cik naikkan semua harga 50 sen, model saya kata: volum jualan akan turun sekitar 8% (pelanggan sensitif harga akan pergi), tapi margin bertambah lebih banyak. Anggaran impact: +RM2,400/bulan. Kalau naik RM1, volum mungkin turun 15%, tapi untung tetap +RM3,100/bulan. Sweet spot untuk Warung Aminah: naikkan 50 sen untuk nasi (sebab pelanggan tak sensitif sangat) tapi kekalkan harga minuman (sebab teh tarik laku sangat dan persaingan kuat).",
+      "projectedDeltaRm": 2400,
+      "risks": ["Pelanggan tetap mungkin kecewa", "Pesaing dekat boleh tarik pelanggan"]
+    },
+    {
+      "pattern": "tambah.{0,15}(item|menu|menu baru)|item baru|menu baru|combo",
+      "answer": "Untuk Warung Aminah, item baru yang paling berpotensi ialah: nasi kerabu (margin tinggi, bahan mudah, tak kanibal nasi lemak sebab rasa berbeza) atau set breakfast combo (nasi lemak + teh + roti pada RM10). Anggaran impact combo: +RM1,800/bulan kalau 15/hari terjual. Tapi HATI-HATI: tambah 2+ item baru pada masa sama boleh kanibal antara satu sama lain — macam yang jadi dengan salted egg sekarang. Test satu dulu, kaji 2 minggu, baru tambah lagi.",
+      "projectedDeltaRm": 1800,
+      "risks": ["Kanibalisasi baru dengan menu sedia ada", "Kos bahan baru untuk item yang tak laku"]
+    },
+    {
+      "pattern": "kurang.{0,10}(kos|bahan)|cut cost|jimat|turunkan kos",
+      "answer": "Nak kurangkan kos? Fokus pada 3 item dengan kos tertinggi: (1) Nasi lemak salted egg (kos 52%) — boleh tukar ke salted egg telur ayam (lebih murah 20%) tapi kurangkan portion. (2) Kuih-muih (kos 45%) — beli terus dari pembekal borong bukan retail boleh jimat 15%. (3) Milo Dinosaur di Grab (perangkap delivery) — dah bincang. Total potensi: RM900/bulan kurangan kos. Cuma jangan turunkan kualiti sampai pelanggan perasan — nasi lemak ayam jangan ubah.",
+      "projectedDeltaRm": 900,
+      "risks": ["Pelanggan perasan kualiti turun", "Pembekal baru mungkin tak stabil"]
+    },
+    {
+      "pattern": "buang|keluar|remove|hilangkan",
+      "answer": "Hmm, kalau Mak Cik buang salted egg, tiga perkara akan jadi: (1) Pelanggan yang sekarang order salted egg (35/hari) mungkin separuh balik order nasi lemak biasa, separuh lagi pergi tempat lain. (2) Untung RM6,048/bulan dari salted egg akan hilang, tapi untung dari nasi lemak biasa naik balik RM2,925/bulan. (3) Net: untung TURUN sekitar RM3,123/bulan. Cadangan saya: jangan buang, tapi naikkan harga salted egg RM1 dan kekal nasi lemak biasa sebagai pilihan murah.",
+      "projectedDeltaRm": -3123,
+      "risks": ["Kehilangan pelanggan yang suka item tersebut", "Menu jadi kurang menarik"]
+    }
+  ],
+  "fallback": {
+    "answer": "Soalan menarik, Mak Cik. Dari data jualan sekarang (RM35,951/bulan untung), mana-mana perubahan besar patut dikaji dengan data 2-3 minggu sebelum buat keputusan tetap. Cadangan saya: cuba ubah kecil dulu, tengok kesan, baru skala. Kalau nak saya analisis spesifik, tanya dengan lebih detail macam 'Kalau saya naikkan harga nasi lemak ayam RM1?' atau 'Kalau saya keluarkan Milo dari GrabFood?'",
+    "projectedDeltaRm": null,
+    "risks": ["Keputusan tanpa data biasanya merugikan"]
+  }
+}
