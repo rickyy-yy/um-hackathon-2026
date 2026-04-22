@@ -91,22 +91,46 @@ async function chatJson<T>(
   return JSON.parse(content) as T;
 }
 
+function mockFor<T extends LlmTask>(args: T, locale: Locale): LlmResult<T['task']> {
+  switch (args.task) {
+    case 'ocr':
+      return mocks.mockOcr() as LlmResult<T['task']>;
+    case 'followup':
+      return mocks.mockFollowup(args.turnIndex, locale) as LlmResult<T['task']>;
+    case 'report':
+      return mocks.mockReport(args.analytics, locale) as LlmResult<T['task']>;
+    case 'whatif':
+      return mocks.mockWhatIf(args.question, args.report, locale) as LlmResult<T['task']>;
+    default:
+      throw new Error('unreachable');
+  }
+}
+
 export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task']>> {
   const locale: Locale = args.locale ?? 'ms';
 
   if (isMockMode()) {
-    switch (args.task) {
-      case 'ocr':
-        return mocks.mockOcr() as LlmResult<T['task']>;
-      case 'followup':
-        return mocks.mockFollowup(args.turnIndex, locale) as LlmResult<T['task']>;
-      case 'report':
-        return mocks.mockReport(args.analytics, locale) as LlmResult<T['task']>;
-      case 'whatif':
-        return mocks.mockWhatIf(args.question, args.report, locale) as LlmResult<T['task']>;
-    }
+    return mockFor(args, locale);
   }
 
+  try {
+    return await callReal(args, locale);
+  } catch (e) {
+    // Fall back to mock rather than crash the UI when the real provider is
+    // misconfigured, auth-rejected, or otherwise unavailable. Log loudly so
+    // the problem is visible in server logs.
+    console.warn(
+      `[llm:${args.task}] real provider failed, falling back to mock:`,
+      (e as { status?: number })?.status ?? (e as Error)?.message ?? e
+    );
+    return mockFor(args, locale);
+  }
+}
+
+async function callReal<T extends LlmTask>(
+  args: T,
+  locale: Locale
+): Promise<LlmResult<T['task']>> {
   const systemMsg = systemPrompt(locale);
 
   switch (args.task) {
@@ -165,5 +189,7 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
       );
       return WhatIfAnswer.parse(raw) as LlmResult<T['task']>;
     }
+    default:
+      throw new Error('unreachable');
   }
 }

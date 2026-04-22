@@ -1,3 +1,9 @@
+// Load .env.local before anything imports lib/llm (env is read at module init)
+import { config as loadEnv } from 'dotenv';
+import { resolve } from 'path';
+loadEnv({ path: resolve(process.cwd(), '.env.local') });
+loadEnv({ path: resolve(process.cwd(), '.env'), override: false });
+
 import { PrismaClient } from '@prisma/client';
 import { computeAnalytics } from '../lib/analytics';
 import { llm } from '../lib/llm';
