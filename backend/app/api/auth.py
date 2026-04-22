@@ -3,9 +3,12 @@
 Login identifier is the user's Malaysian mobile phone number, normalized to
 E.164 before storage and lookup. Email is kept as an optional profile field
 (used for report delivery) but is NOT a credential.
-"""
-from __future__ import annotations
 
+Note: we intentionally do NOT use `from __future__ import annotations` here.
+slowapi's @limiter.limit wrapper leaves FastAPI unable to resolve string
+forward refs (e.g. "SignupRequest") because the wrapped function's
+__globals__ points at slowapi's module, not ours.
+"""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
