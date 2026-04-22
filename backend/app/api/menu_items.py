@@ -61,7 +61,7 @@ async def update_item(
     return item
 
 
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_item(
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
