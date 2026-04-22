@@ -11,6 +11,7 @@ import { DeliveryTrapTable } from '@/components/DeliveryTrapTable';
 import { TaxCard } from '@/components/TaxCard';
 import { ActionCards } from '@/components/ActionCards';
 import { BenchmarkCard } from '@/components/BenchmarkCard';
+import { WhatsAppShare } from '@/components/WhatsAppShare';
 
 export const dynamic = 'force-dynamic';
 
@@ -163,6 +164,9 @@ export default async function Dashboard({
         >
           Tanya: Kalau saya...?
         </Link>
+
+        <WhatsAppShare report={full} shopName={user?.name ?? 'kedai anda'} />
+
 
         <form action="/api/auth/logout" method="post" className="mt-4">
           <button className="w-full text-sm text-kira-muted underline">

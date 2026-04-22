@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { calculateTax, PERSONAL_RELIEFS, RELIEF_LABELS_BM, type ReliefKey } from '@/lib/tax';
 import type { TaxBreakdown } from '@/lib/schemas';
+import { TaxBracketBar } from './TaxBracketBar';
 
 const OPTIONAL: ReliefKey[] = [
   'epf',
@@ -79,6 +80,11 @@ export function TaxCard({
             RM{current.monthlyTax.toLocaleString()}
           </div>
         </div>
+      </div>
+
+      {/* Bracket visualization */}
+      <div className="mb-5 pt-3">
+        <TaxBracketBar chargeableIncome={current.chargeableIncome} />
       </div>
 
       {/* Checkboxes — which optional reliefs apply */}
