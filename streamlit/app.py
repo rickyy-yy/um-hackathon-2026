@@ -14,7 +14,7 @@ from utils.auth import verify_token
 from utils.db import fetch_report, list_reports
 from utils.theme import ACCENT, ALERT, PLOTLY_LAYOUT, PRIMARY, SURFACE
 
-st.set_page_config(page_title="Kira2 Je — Laporan", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Kira2Lah — Laporan", layout="wide", initial_sidebar_state="collapsed")
 
 # Inject styles to blend with the frontend palette
 st.markdown(
@@ -42,12 +42,15 @@ except ValueError as exc:
     st.error(f"Session invalid: {exc}")
     st.stop()
 
-user_id = payload["sub"]
-
-report = fetch_report(report_id, user_id)
+# The token is signed by the backend and carries the report_id claim — we
+# fetch by report_id without a shop_id filter because the backend already
+# verified ownership before issuing the token.
+report = fetch_report(report_id)
 if report is None:
-    st.error("Report not found for this user.")
+    st.error("Report not found.")
     st.stop()
+
+shop_id = report.get("shop_id")
 
 summary = report["summary_json"]
 agg = summary.get("aggregate_metrics", {})
@@ -99,7 +102,7 @@ else:
         col3.metric("Margin", f"{row['margin_pct']:.1f}%")
 
         # Historical trends — gather from all reports for this user
-        history = list_reports(user_id)
+        history = list_reports(shop_id) if shop_id else []
         trend_rows = []
         for h in history:
             for r in h["summary_json"].get("menu_item_breakdown", []):

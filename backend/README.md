@@ -1,4 +1,4 @@
-# Kira2 Je — Backend
+# Kira2Lah — Backend
 
 FastAPI service that handles auth, uploads, the AI orchestration layer, report
 generation, exports, and delivery (email / WhatsApp).
@@ -7,7 +7,7 @@ generation, exports, and delivery (email / WhatsApp).
 
 ```
 app/
-├── api/               Route modules (auth, upload, chat, reports, menu_items, tax, dashboard)
+├── api/               Route modules (auth, shops, upload, chat, reports, menu_items, tax, dashboard)
 ├── models/            SQLAlchemy ORM models (one file per table)
 ├── schemas/           Pydantic request/response schemas
 ├── services/

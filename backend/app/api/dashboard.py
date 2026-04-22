@@ -1,16 +1,16 @@
-"""Dashboard helpers — currently just a short-lived Streamlit token."""
+"""Dashboard helpers — short-lived Streamlit token (shop-scoped)."""
 from __future__ import annotations
 
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.scope import Scope, require_authenticated_scope
 from app.core.security import create_streamlit_token, decode_token
-from app.models import Report, User
+from app.models import Report
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -19,15 +19,15 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 async def get_streamlit_token(
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    scope: Scope = Depends(require_authenticated_scope),
 ) -> dict:
     result = await db.execute(
-        select(Report).where(Report.id == report_id, Report.user_id == user.id)
+        select(Report).where(and_(Report.id == report_id, Report.shop_id == scope.shop_id))
     )
     report = result.scalar_one_or_none()
     if report is None:
-        raise HTTPException(status_code=404, detail="Report not found")
-    token = create_streamlit_token(user.id, report.id)
+        raise HTTPException(status_code=404, detail="ERR_REPORT_NOT_FOUND")
+    token = create_streamlit_token(scope.user.id, report.id)
     return {"token": token, "report_id": str(report.id)}
 
 
@@ -37,7 +37,7 @@ async def verify_streamlit_token(token: str) -> dict:
     try:
         payload = decode_token(token)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
+        raise HTTPException(status_code=401, detail=f"ERR_TOKEN_INVALID: {exc}") from exc
     if payload.get("scope") != "streamlit":
-        raise HTTPException(status_code=401, detail="Wrong token scope")
+        raise HTTPException(status_code=401, detail="ERR_TOKEN_SCOPE_WRONG")
     return {"user_id": payload["sub"], "report_id": payload.get("report_id")}

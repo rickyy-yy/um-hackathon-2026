@@ -44,6 +44,11 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      # Internal Docker hostname used by the Next.js proxy (server-side).
+      BACKEND_URL: http://backend:8000
+      # Public URL the browser uses — matches the exposed port on the host.
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:8000
     depends_on:
       - backend
     volumes:
@@ -65,6 +70,26 @@ services:
         condition: service_healthy
     volumes:
       - ./streamlit:/app
+
+  # One-shot seeder: inserts the test user, a sample shop, three months of
+  # sales data, and a generated report so the demo has content on first login.
+  # Run manually after the stack is up:
+  #   docker compose run --rm seeder
+  seeder:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: ["seed"]
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    command: python scripts/seed_test_data.py
 
 volumes:
   pgdata:

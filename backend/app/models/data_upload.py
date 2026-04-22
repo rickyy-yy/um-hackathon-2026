@@ -13,11 +13,19 @@ from app.core.database import Base
 
 class DataUpload(Base):
     __tablename__ = "data_uploads"
-    __table_args__ = (Index("idx_uploads_user", "user_id"),)
+    __table_args__ = (
+        Index("idx_uploads_shop", "shop_id"),
+        Index("idx_uploads_guest", "guest_session_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    shop_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=True
+    )
+    guest_session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("guest_sessions.id", ondelete="CASCADE"),
+        nullable=True,
     )
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)

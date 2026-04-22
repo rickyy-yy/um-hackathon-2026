@@ -1,17 +1,23 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
       colors: {
-        primary: '#0F6E56',
-        'primary-dark': '#0a5443',
-        accent: '#F0DD62',
-        surface: '#C6DABF',
-        bg: '#F3E9D2',
-        alert: '#D64933',
-        ink: '#0d1b2a',
+        // Semantic tokens driven by CSS variables so dark mode flips without
+        // recompiling. Raw hex values remain available via the `brand-*`
+        // namespace for legacy use.
+        bg: 'rgb(var(--color-bg) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        primary: 'rgb(var(--color-primary) / <alpha-value>)',
+        'primary-dark': 'rgb(var(--color-primary-dark) / <alpha-value>)',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        alert: 'rgb(var(--color-alert) / <alpha-value>)',
+        ink: 'rgb(var(--color-ink) / <alpha-value>)',
+        muted: 'rgb(var(--color-muted) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
       },
       fontFamily: {
         serif: ['"Playfair Display"', 'Georgia', 'serif'],

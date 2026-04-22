@@ -1,33 +1,31 @@
-# Kira2 Je — Frontend
+# Kira2Lah — Frontend
 
-Next.js 14 (App Router) + Tailwind CSS. Pages map 1-to-1 to the PRD:
+Next.js 14 (App Router) + Tailwind CSS. Pages:
 
-| Path             | Purpose                                                   |
-| ---------------- | --------------------------------------------------------- |
-| `/`              | Landing page — marketing, hero, "how it works" strip.     |
-| `/signup`        | Register (email + password + business info).              |
-| `/login`         | Log in, route based on `has_reports`.                     |
-| `/upload`        | 3-tab data intake — File · Scan · Chat dengan Kira.       |
-| `/dashboard`     | Past reports list + embedded Streamlit charts.            |
-| `/report/[id]`   | Full AI-generated report + export/share + strategy chat.  |
+| Path                 | Purpose                                                             |
+| -------------------- | ------------------------------------------------------------------- |
+| `/`                  | Landing page — hero, "how it works", Login / Try now CTAs.          |
+| `/login`             | Phone + password **or** phone + OTP (tabbed).                       |
+| `/signup`            | Create account (phone number primary, email optional).              |
+| `/forgot-password`   | Password reset via OTP.                                             |
+| `/shops/new`         | "Let's add your first shop" screen post-signup, or additional shop. |
+| `/upload`            | 3-tab data intake — File · Scan · Chat. Works for guests.           |
+| `/dashboard`         | Past reports list + embedded Streamlit charts. Requires a shop.     |
+| `/report/[id]`       | Full AI report + strategy chat + export/share (authed) or signup prompt (guest). |
 
 ## Design tokens
 
-All colors match the PRD-mandated palette, configured in `tailwind.config.ts`
-and CSS variables in `src/styles/globals.css`:
+Colors are defined as CSS variables in `src/styles/globals.css` and exposed through Tailwind as semantic names (`bg-bg`, `bg-surface`, `text-primary`, etc.). Flipping `html.dark` swaps the palette — `tailwind.config.ts` uses `darkMode: 'class'`.
 
-- `primary` `#0F6E56`
-- `accent` `#F0DD62`
-- `surface` `#C6DABF`
-- `bg` `#F3E9D2`
-- `alert` `#D64933`
+Headlines use **Playfair Display** (serif), body is **Inter** — loaded from Google Fonts in `globals.css`.
 
-Headlines use **Playfair Display** (serif), body is **Inter** — loaded from
-Google Fonts in `globals.css`.
+## State providers
+
+Wrapped in `src/app/layout.tsx` via `<Providers>`:
+
+- `I18nProvider` — language (`en`/`ms`/`zh`), persists to `localStorage.kira2lah.language` and optionally mirrors to the authenticated user's profile.
+- `ThemeProvider` — light/dark/system, persists to `localStorage.kira2lah.theme`. An inline `<script>` runs before first paint to avoid flash-of-wrong-theme.
 
 ## Auth
 
-The session cookie is httpOnly, so the frontend never touches the token
-directly. Every fetch in `src/lib/api.ts` uses `credentials: 'include'`.
-`/api/auth/me` is called from `AppShell` to gate authenticated pages;
-unauthenticated visitors are redirected to `/login`.
+Session cookies are httpOnly, so the frontend never touches a token directly. Every call in `src/lib/api.ts` uses `credentials: 'include'` and attaches an `X-Shop-Id` header (from `localStorage`) so the backend can scope per active shop.

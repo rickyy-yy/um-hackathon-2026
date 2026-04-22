@@ -4,9 +4,40 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
 
+/*
+ * Semantic color tokens. Flip `html.dark` (or rely on system via
+ * prefers-color-scheme) to swap palettes. Values are stored as RGB channel
+ * triplets so Tailwind utilities can apply alpha, e.g. `bg-surface/50`.
+ */
+:root {
+  --color-bg: 243 233 210;          /* #F3E9D2 */
+  --color-surface: 198 218 191;     /* #C6DABF */
+  --color-primary: 15 110 86;       /* #0F6E56 */
+  --color-primary-dark: 10 84 67;   /* #0a5443 */
+  --color-accent: 240 221 98;       /* #F0DD62 */
+  --color-alert: 214 73 51;         /* #D64933 */
+  --color-ink: 26 31 28;            /* #1A1F1C */
+  --color-muted: 117 125 119;       /* slate-ish */
+  --color-border: 15 110 86;        /* primary, used with /20 */
+  --color-card: 255 255 255;
+}
+
+html.dark {
+  --color-bg: 26 31 28;             /* #1A1F1C */
+  --color-surface: 42 51 44;        /* #2A332C */
+  --color-primary: 20 168 132;      /* #14A884 — brighter for contrast */
+  --color-primary-dark: 16 134 107;
+  --color-accent: 240 221 98;       /* unchanged, looks good on dark */
+  --color-alert: 232 107 87;        /* #E86B57 */
+  --color-ink: 243 233 210;         /* #F3E9D2 — inverted */
+  --color-muted: 175 185 179;
+  --color-border: 105 115 109;
+  --color-card: 42 51 44;
+}
+
 html, body {
-  background-color: #F3E9D2;
-  color: #0d1b2a;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-ink));
   -webkit-font-smoothing: antialiased;
 }
 
@@ -29,14 +60,17 @@ h1, h2, h3, h4, .font-serif {
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-primary/30 px-4 py-2 text-primary font-medium hover:bg-primary/5 transition;
   }
+  .btn-back {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-[rgb(var(--color-card))] px-3 py-1.5 text-sm text-primary font-medium hover:bg-primary/5 transition;
+  }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full border-2 border-primary/40 bg-white px-4 py-2 text-primary font-medium hover:bg-primary/5 transition cursor-pointer;
+    @apply inline-flex items-center gap-1 rounded-full border-2 border-primary/40 bg-[rgb(var(--color-card))] px-4 py-2 text-primary font-medium hover:bg-primary/5 transition cursor-pointer;
   }
   .chip-selected {
     @apply chip bg-primary text-white border-primary;
   }
   .card {
-    @apply rounded-2xl bg-white p-5 shadow-card;
+    @apply rounded-2xl bg-[rgb(var(--color-card))] p-5 shadow-card;
   }
   .card-surface {
     @apply rounded-2xl bg-surface/60 p-5;
@@ -45,12 +79,34 @@ h1, h2, h3, h4, .font-serif {
     @apply inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 font-semibold text-ink;
   }
   .input {
-    @apply w-full rounded-xl border border-primary/20 bg-white px-4 py-3 text-ink focus:outline-none focus:border-primary transition;
+    @apply w-full rounded-xl border border-primary/20 bg-[rgb(var(--color-card))] px-4 py-3 text-ink placeholder:text-muted focus:outline-none focus:border-primary transition;
   }
-  .sage-bubble {
-    @apply rounded-2xl bg-surface px-4 py-3 text-ink;
+  .nav-icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 text-primary hover:bg-primary/5 transition;
   }
-  .user-bubble {
-    @apply rounded-2xl bg-white px-4 py-3 text-ink shadow-card;
-  }
+}
+
+/* Markdown styles inside AI chat bubbles */
+.prose-chat {
+  @apply text-ink leading-relaxed;
+}
+.prose-chat p { @apply my-2; }
+.prose-chat ul, .prose-chat ol { @apply my-2 pl-5 list-disc; }
+.prose-chat ol { @apply list-decimal; }
+.prose-chat code { @apply rounded bg-primary/10 px-1 py-0.5 text-[0.9em]; }
+.prose-chat pre { @apply rounded-xl bg-primary/10 p-3 overflow-x-auto; }
+.prose-chat table { @apply my-3 w-full border-collapse text-sm; }
+.prose-chat th, .prose-chat td { @apply border border-primary/20 px-2 py-1.5 text-left; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { @apply font-serif text-primary mt-3 mb-1; }
+.prose-chat strong { @apply font-semibold; }
+
+/* Streaming cursor blink at end of AI replies */
+@keyframes cursor-blink {
+  0%, 40% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.cursor-blink::after {
+  content: '▎';
+  animation: cursor-blink 1s step-start infinite;
+  margin-left: 2px;
 }

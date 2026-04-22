@@ -1,4 +1,4 @@
-"""Kira2 Je color palette for Plotly."""
+"""Kira2Lah color palette for Plotly."""
 
 PRIMARY = "#0F6E56"
 ACCENT = "#F0DD62"
