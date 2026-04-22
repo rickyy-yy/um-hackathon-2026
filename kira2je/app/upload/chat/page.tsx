@@ -8,7 +8,7 @@ type Msg = { from: 'ai' | 'user'; text: string };
 
 const SCRIPT: { ai: string; key: 'items' | 'prices' | 'qty' | 'months' | 'done' }[] = [
   {
-    ai: 'Hai Mak Cik! Jom kita kumpul data menu Mak Cik dengan cara mudah. Pertama, apa 5 item paling popular di warung anda? Taip satu-satu, pisahkan dengan koma.',
+    ai: 'Hai boss! Jom kita kumpul data menu anda dengan cara mudah. Pertama, apa 5 item paling popular di kedai anda? Taip satu-satu, pisahkan dengan koma.',
     key: 'items',
   },
   {
@@ -24,7 +24,7 @@ const SCRIPT: { ai: string; key: 'items' | 'prices' | 'qty' | 'months' | 'done' 
     key: 'months',
   },
   {
-    ai: 'Terima kasih, Mak Cik. Kami akan guna maklumat ini untuk buat analisis awal. Untuk data yang lebih tepat, cuba upload fail POS atau gambar buku akaun bila-bila masa.',
+    ai: 'Terima kasih, boss. Kami akan guna maklumat ini untuk buat analisis awal. Untuk data yang lebih tepat, cuba upload fail POS atau gambar buku akaun bila-bila masa.',
     key: 'done',
   },
 ];

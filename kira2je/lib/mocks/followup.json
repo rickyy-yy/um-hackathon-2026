@@ -1,7 +1,7 @@
 {
   "turns": [
     {
-      "question": "Mak Cik, lebih kurang berapa peratus kos bahan untuk nasi lemak? (Contoh: RM2 kos untuk nasi lemak RM5 = 40%)",
+      "question": "Boss, lebih kurang berapa peratus kos bahan untuk nasi lemak? (Contoh: RM2 kos untuk nasi lemak RM5 = 40%)",
       "field": "costPercent",
       "done": false
     },

@@ -149,7 +149,7 @@ export default async function Dashboard({
 
         {/* 5h Actions */}
         <div>
-          <h3 className="serif text-xl mb-3 px-1">Apa Mak Cik patut buat?</h3>
+          <h3 className="serif text-xl mb-3 px-1">Apa boss patut buat?</h3>
           <ActionCards recommendations={n.recommendations} totalImpactRm={n.totalImpactRm} />
         </div>
 

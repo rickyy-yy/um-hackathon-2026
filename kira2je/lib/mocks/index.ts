@@ -57,7 +57,7 @@ export function mockReport(analytics: AnalyticsResult): ReportNarration {
             (t) =>
               `${t.itemName}: harga RM${rm(t.price)}, lepas komisyen ${Math.round(t.commission * 100)}% untung cuma RM${rm(t.effectiveMarginRm)} setiap satu`
           )
-          .join('. ')}. Sesetengah mak cik lebih baik naikkan harga khas untuk delivery atau keluarkan item ini dari apps.`
+          .join('. ')}. Sesetengah peniaga lebih baik naikkan harga khas untuk delivery atau keluarkan item ini dari apps.`
       : null;
 
   const taxNarrative = `Dengan untung bulanan RM${rm(analytics.estimatedProfit)}, anggaran cukai tahunan anda ialah RM${rm(
