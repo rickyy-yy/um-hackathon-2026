@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { computeAnalytics } from '@/lib/analytics';
+import { llm } from '@/lib/llm';
 
 type Row = {
   item: string;
@@ -72,12 +73,21 @@ export async function POST(req: Request) {
   });
 
   const analytics = await computeAnalytics(session.userId);
+  // Pre-generate narration so the dashboard is instant on first load.
+  // Failures are non-fatal — dashboard falls back to inline generation.
+  let narration = null;
+  try {
+    narration = await llm({ task: 'report', analytics });
+  } catch {
+    // swallowed; dashboard will retry narration lazily
+  }
+
   const report = await prisma.report.create({
     data: {
       userId: session.userId,
       dateRangeFrom: new Date(analytics.dateRangeFrom),
       dateRangeTo: new Date(analytics.dateRangeTo),
-      reportData: JSON.stringify({ analytics, narration: null }),
+      reportData: JSON.stringify({ analytics, narration }),
     },
   });
 

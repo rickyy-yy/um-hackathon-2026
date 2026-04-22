@@ -66,16 +66,33 @@ export async function computeAnalytics(
   }
 
   const allDates = items.flatMap((i) => i.salesData.map((s) => s.date));
-  const dateRangeFrom = new Date(Math.min(...allDates.map((d) => +d)));
-  const dateRangeTo = new Date(Math.max(...allDates.map((d) => +d)));
-  const spanDays = Math.max(
-    1,
-    Math.round((+dateRangeTo - +dateRangeFrom) / 86_400_000) + 1
-  );
+  const latest = new Date(Math.max(...allDates.map((d) => +d)));
+  const earliest = new Date(Math.min(...allDates.map((d) => +d)));
 
-  const perItem: ItemPerf[] = items.map((item) => {
+  // Split into current period (last 30 days up to latest) and prior period
+  // (the 30 days before that). If we don't have 60 days of history, the
+  // prior-period trend collapses to 0 rather than synthesising a fake delta.
+  const DAY = 86_400_000;
+  const currentTo = latest;
+  const currentFrom = new Date(+latest - 29 * DAY);
+  const priorTo = new Date(+currentFrom - DAY);
+  const priorFrom = new Date(+priorTo - 29 * DAY);
+  const hasPriorData = +earliest <= +priorTo;
+
+  const windowFilter = (from: Date, to: Date) => (s: { date: Date }) =>
+    s.date >= from && s.date <= to;
+
+  // Current period items — main analytics run on these
+  const currentItems = items.map((i) => ({
+    ...i,
+    salesData: i.salesData.filter(windowFilter(currentFrom, currentTo)),
+  }));
+
+  const currentSpanDays = 30;
+
+  const perItem: ItemPerf[] = currentItems.map((item) => {
     const qty = item.salesData.reduce((sum, s) => sum + s.quantity, 0);
-    const perDay = qty / spanDays;
+    const perDay = qty / currentSpanDays;
     const monthlyUnits = perDay * 30;
     const monthlyRevenue = monthlyUnits * item.price;
     const costPct = item.costPercent ?? 0.35;
@@ -103,6 +120,25 @@ export async function computeAnalytics(
     perItem.reduce((a, b) => a + b.monthlyProfit, 0)
   );
 
+  // Prior-period totals: compute revenue/profit from Feb-window sales
+  let priorRevenue = 0;
+  let priorProfit = 0;
+  if (hasPriorData) {
+    for (const item of items) {
+      const priorSales = item.salesData.filter(windowFilter(priorFrom, priorTo));
+      const qty = priorSales.reduce((s, r) => s + r.quantity, 0);
+      const costPct = item.costPercent ?? 0.35;
+      priorRevenue += qty * item.price;
+      priorProfit += qty * item.price * (1 - costPct);
+    }
+  }
+
+  const revenueChangePct =
+    priorRevenue > 0 ? ((totalRevenue - priorRevenue) / priorRevenue) * 100 : 0;
+  const profitChangePct =
+    priorProfit > 0 ? ((estimatedProfit - priorProfit) / priorProfit) * 100 : 0;
+
+  // Cannibalization runs on ALL history — needs the pre-launch baseline
   const cannibalization = detectCannibalization(items);
 
   const deliveryTraps: DeliveryTrap[] = items
@@ -129,10 +165,8 @@ export async function computeAnalytics(
   const area = user?.area ?? 'Kajang';
   const benchmarks = await loadBenchmarks(area, perItem);
 
-  const prevRevenue = totalRevenue / 1.08;
-  const prevProfit = estimatedProfit / 1.05;
-  const revenueChangePct = ((totalRevenue - prevRevenue) / prevRevenue) * 100;
-  const profitChangePct = ((estimatedProfit - prevProfit) / prevProfit) * 100;
+  const dateRangeFrom = currentFrom;
+  const dateRangeTo = currentTo;
 
   return {
     userId,

@@ -9,7 +9,7 @@ Ekstrak semua data jualan dan kembalikan sebagai JSON:
 {
   "items": [{ "name": "...", "quantity": ..., "price": ..., "date": "YYYY-MM-DD" }],
   "confidence": "high" | "medium" | "low",
-  "missing_info": ["senarai apa yang tak pasti"]
+  "missingInfo": ["senarai apa yang tak pasti"]
 }
 Rekod mungkin dalam BM, Inggeris, atau campuran. Tulisan mungkin tak kemas.
 Tafsir singkatan (NL = nasi lemak, TT = teh tarik, MG = mee goreng, dll.)`;

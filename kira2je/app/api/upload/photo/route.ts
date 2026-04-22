@@ -62,12 +62,19 @@ export async function POST(req: Request) {
   });
 
   const analytics = await computeAnalytics(session.userId);
+  let narration = null;
+  try {
+    narration = await llm({ task: 'report', analytics });
+  } catch {
+    // non-fatal; dashboard will retry
+  }
+
   const report = await prisma.report.create({
     data: {
       userId: session.userId,
       dateRangeFrom: new Date(analytics.dateRangeFrom),
       dateRangeTo: new Date(analytics.dateRangeTo),
-      reportData: JSON.stringify({ analytics, narration: null }),
+      reportData: JSON.stringify({ analytics, narration }),
     },
   });
 

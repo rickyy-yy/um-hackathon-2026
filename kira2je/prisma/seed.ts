@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { computeAnalytics } from '../lib/analytics';
+import { llm } from '../lib/llm';
 import { MENU, BENCHMARKS, generateDailyRecords } from '../lib/scenario';
 
 const prisma = new PrismaClient();
@@ -55,12 +56,22 @@ async function main() {
   }
 
   const analytics = await computeAnalytics(aminah.id);
+  // Pre-generate narration at seed time so the dashboard doesn't block on
+  // an LLM round-trip on first load. Falls back to inline generation if this
+  // ever fails (dashboard keeps a null-narration safety net).
+  let narration = null;
+  try {
+    narration = await llm({ task: 'report', analytics });
+  } catch (e) {
+    console.warn('Narration pre-gen failed, dashboard will retry:', e);
+  }
+
   const report = await prisma.report.create({
     data: {
       userId: aminah.id,
       dateRangeFrom: new Date(analytics.dateRangeFrom),
       dateRangeTo: new Date(analytics.dateRangeTo),
-      reportData: JSON.stringify({ analytics, narration: null }),
+      reportData: JSON.stringify({ analytics, narration }),
     },
   });
 

@@ -14,7 +14,10 @@ export type MenuSeed = {
   postEventQtyPerDay?: number;
 };
 
-export const START = new Date('2026-03-01T00:00:00Z');
+// Two months of history: Feb is the prior period (before salted egg launch),
+// Mar is the current period (with salted egg cannibalizing biasa).
+// This gives analytics a real MoM delta to report instead of a synthetic one.
+export const START = new Date('2026-02-01T00:00:00Z');
 export const END = new Date('2026-03-30T00:00:00Z');
 export const SALTED_EGG_LAUNCH = new Date('2026-03-15T00:00:00Z');
 

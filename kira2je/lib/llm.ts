@@ -41,12 +41,45 @@ function getClient(): OpenAI {
   return client;
 }
 
-async function chatJson<T>(messages: OpenAI.Chat.ChatCompletionMessageParam[]): Promise<T> {
-  const resp = await getClient().chat.completions.create({
-    model: process.env.LLM_MODEL || 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
-    messages,
-  });
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxAttempts = 2
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e: unknown) {
+      lastErr = e;
+      const status = (e as { status?: number })?.status;
+      const retryable =
+        status === 429 || (typeof status === 'number' && status >= 500 && status < 600);
+      if (!retryable || attempt === maxAttempts) {
+        console.warn(`[llm:${label}] giving up after attempt ${attempt}:`, status ?? e);
+        throw e;
+      }
+      const delay = 500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 200);
+      console.warn(`[llm:${label}] attempt ${attempt} failed (${status}), retrying in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+async function chatJson<T>(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  label: string
+): Promise<T> {
+  const resp = await withRetry(
+    () =>
+      getClient().chat.completions.create({
+        model: process.env.LLM_MODEL || 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages,
+      }),
+    label
+  );
   const content = resp.choices[0]?.message?.content ?? '{}';
   return JSON.parse(content) as T;
 }
@@ -67,42 +100,58 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
 
   switch (args.task) {
     case 'ocr': {
-      const resp = await getClient().chat.completions.create({
-        model: process.env.LLM_MODEL || 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_BM },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: ocrPrompt() },
-              { type: 'image_url', image_url: { url: `data:${args.mimeType};base64,${args.imageBase64}` } },
+      const resp = await withRetry(
+        () =>
+          getClient().chat.completions.create({
+            model: process.env.LLM_MODEL || 'gpt-4o-mini',
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: SYSTEM_BM },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: ocrPrompt() },
+                  {
+                    type: 'image_url',
+                    image_url: { url: `data:${args.mimeType};base64,${args.imageBase64}` },
+                  },
+                ],
+              },
             ],
-          },
-        ],
-      });
+          }),
+        'ocr'
+      );
       const parsed = JSON.parse(resp.choices[0]?.message?.content ?? '{}');
       return OcrExtraction.parse(parsed) as LlmResult<T['task']>;
     }
     case 'followup': {
-      const raw = await chatJson<unknown>([
-        { role: 'system', content: SYSTEM_BM },
-        { role: 'user', content: followupPrompt(args.extracted, args.askedSoFar) },
-      ]);
+      const raw = await chatJson<unknown>(
+        [
+          { role: 'system', content: SYSTEM_BM },
+          { role: 'user', content: followupPrompt(args.extracted, args.askedSoFar) },
+        ],
+        'followup'
+      );
       return FollowupTurn.parse(raw) as LlmResult<T['task']>;
     }
     case 'report': {
-      const raw = await chatJson<unknown>([
-        { role: 'system', content: SYSTEM_BM },
-        { role: 'user', content: reportPrompt(args.analytics) },
-      ]);
+      const raw = await chatJson<unknown>(
+        [
+          { role: 'system', content: SYSTEM_BM },
+          { role: 'user', content: reportPrompt(args.analytics) },
+        ],
+        'report'
+      );
       return ReportNarration.parse(raw) as LlmResult<T['task']>;
     }
     case 'whatif': {
-      const raw = await chatJson<unknown>([
-        { role: 'system', content: SYSTEM_BM },
-        { role: 'user', content: whatIfPrompt(args.report, args.question) },
-      ]);
+      const raw = await chatJson<unknown>(
+        [
+          { role: 'system', content: SYSTEM_BM },
+          { role: 'user', content: whatIfPrompt(args.report, args.question) },
+        ],
+        'whatif'
+      );
       return WhatIfAnswer.parse(raw) as LlmResult<T['task']>;
     }
   }
