@@ -13,7 +13,7 @@ Quickstart:
 ```bash
 cd kira2je
 npm install
-cp .env.local.example .env.local
+cp .env.example .env
 npx prisma migrate deploy
 npx prisma db seed
 npm run build

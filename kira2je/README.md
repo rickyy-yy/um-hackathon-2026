@@ -9,14 +9,16 @@ All UI in casual Bahasa Malaysia. Mobile-first Next.js web app.
 ```bash
 cd kira2je
 npm install
-cp .env.local.example .env.local
+cp .env.example .env                  # Windows PowerShell: Copy-Item .env.example .env
 npx prisma migrate deploy
 npx prisma db seed
 npm run build
-npm run start      # http://localhost:3000
+npm run start                         # http://localhost:3000
 ```
 
-`MOCK_LLM=true` is the default in `.env.local.example`, so the full app — including vision OCR, follow-up chat, report narration, and what-if — runs end-to-end without any API key using canned Bahasa Malaysia responses. Swap to a real LLM by setting `MOCK_LLM=false` plus the `LLM_*` vars (Z.AI GLM migration is a three-line env change).
+> **Why `.env` and not `.env.local`?** Prisma CLI only reads `.env` by default. Next.js reads both, with `.env.local` taking precedence — so one `.env` file is enough for local dev. If you'd rather split secrets out, copy to `.env.local` as well.
+
+`MOCK_LLM=true` is the default in `.env.example`, so the full app — including vision OCR, follow-up chat, report narration, and what-if — runs end-to-end without any API key using canned Bahasa Malaysia responses. Swap to a real LLM by setting `MOCK_LLM=false` plus the `LLM_*` vars (Z.AI GLM migration is a three-line env change).
 
 ### Demo login
 
@@ -58,7 +60,7 @@ To show the upload path without adding stage seconds: `/onboarding` → "Ada fai
 
 ## Swapping to Z.AI GLM
 
-Edit `.env.local`:
+Edit `.env`:
 
 ```
 MOCK_LLM=false
