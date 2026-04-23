@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  area      String?
+  createdAt DateTime @default(now())
+  reports   Report[]
+  items     MenuItem[]
+  whatIf    WhatIfTurn[]
+}
+
+model MenuItem {
+  id                 String        @id @default(cuid())
+  userId             String
+  user               User          @relation(fields: [userId], references: [id])
+  name               String
+  price              Float
+  costPercent        Float?
+  category           String?
+  isDelivery         Boolean       @default(false)
+  deliveryCommission Float?
+  addedAt            DateTime?
+  createdAt          DateTime      @default(now())
+  salesData          SalesRecord[]
+}
+
+model SalesRecord {
+  id         String   @id @default(cuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  date       DateTime
+  quantity   Int
+  channel    String?
+  createdAt  DateTime @default(now())
+
+  @@index([menuItemId, date])
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  dateRangeFrom DateTime
+  dateRangeTo   DateTime
+  reportData    String
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model WhatIfTurn {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  reportId  String
+  question  String
+  answer    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, reportId])
+}
+
+model AreaBenchmark {
+  id         String   @id @default(cuid())
+  itemName   String
+  area       String
+  avgPrice   Float
+  minPrice   Float
+  maxPrice   Float
+  sampleSize Int
+  scrapedAt  DateTime @default(now())
+
+  @@unique([itemName, area])
+}
