@@ -37,6 +37,51 @@ function isMockMode(): boolean {
   return (process.env.MOCK_LLM ?? 'true').toLowerCase() === 'true' || !process.env.LLM_API_KEY;
 }
 
+// In-memory session stats. Resets on server restart. Used by the footer's
+// /api/llm/status endpoint so the user can see what's actually running.
+export const llmStats = {
+  realCallCount: 0,
+  mockCallCount: 0,
+  fallbackCount: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  lastCallAt: null as number | null,
+  lastStatus: null as number | null,
+  lastErrorMessage: null as string | null,
+  lastTask: null as string | null,
+};
+
+function recordSuccess(task: string, usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined | null) {
+  llmStats.realCallCount++;
+  llmStats.lastCallAt = Date.now();
+  llmStats.lastStatus = 200;
+  llmStats.lastErrorMessage = null;
+  llmStats.lastTask = task;
+  if (usage) {
+    llmStats.promptTokens += usage.prompt_tokens ?? 0;
+    llmStats.completionTokens += usage.completion_tokens ?? 0;
+    llmStats.totalTokens += usage.total_tokens ?? 0;
+  }
+}
+
+function recordFailure(task: string, err: unknown) {
+  llmStats.fallbackCount++;
+  llmStats.lastCallAt = Date.now();
+  llmStats.lastTask = task;
+  llmStats.lastStatus = (err as { status?: number })?.status ?? null;
+  llmStats.lastErrorMessage =
+    (err as { error?: { message?: string } })?.error?.message ??
+    (err as Error)?.message ??
+    String(err);
+}
+
+function recordMock(task: string) {
+  llmStats.mockCallCount++;
+  llmStats.lastCallAt = Date.now();
+  llmStats.lastTask = task;
+}
+
 let client: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!client) {
@@ -87,6 +132,7 @@ async function chatJson<T>(
       }),
     label
   );
+  recordSuccess(label, resp.usage);
   const content = resp.choices[0]?.message?.content ?? '{}';
   return JSON.parse(content) as T;
 }
@@ -110,12 +156,14 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
   const locale: Locale = args.locale ?? 'ms';
 
   if (isMockMode()) {
+    recordMock(args.task);
     return mockFor(args, locale);
   }
 
   try {
     return await callReal(args, locale);
   } catch (e) {
+    recordFailure(args.task, e);
     // Fall back to mock rather than crash the UI when the real provider is
     // misconfigured, auth-rejected, or otherwise unavailable. Log loudly so
     // the problem is visible in server logs.
@@ -156,6 +204,7 @@ async function callReal<T extends LlmTask>(
           }),
         'ocr'
       );
+      recordSuccess('ocr', resp.usage);
       const parsed = JSON.parse(resp.choices[0]?.message?.content ?? '{}');
       return OcrExtraction.parse(parsed) as LlmResult<T['task']>;
     }

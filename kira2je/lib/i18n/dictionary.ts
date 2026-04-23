@@ -161,6 +161,16 @@ export const dict = {
     'common.rmAmountSuffix': '/bulan',
     'common.rmAmountYearSuffix': '/tahun',
     'common.perDay': '/hari',
+
+    'footer.modelLabel': 'Model',
+    'footer.mockMode': 'Mod ujian',
+    'footer.liveMode': 'Langsung',
+    'footer.degradedMode': 'Mod ujian (fallback)',
+    'footer.tokensUsed': '{n} token digunakan sesi ini',
+    'footer.noCalls': 'Belum ada panggilan AI',
+    'footer.balanceNote': 'Baki kredit — semak di dashboard pembekal',
+    'footer.lastCall': 'Panggilan terakhir: {task} · {status}',
+    'footer.details': 'Butiran',
   },
 
   en: {
@@ -322,6 +332,16 @@ export const dict = {
     'common.rmAmountSuffix': '/month',
     'common.rmAmountYearSuffix': '/year',
     'common.perDay': '/day',
+
+    'footer.modelLabel': 'Model',
+    'footer.mockMode': 'Mock mode',
+    'footer.liveMode': 'Live',
+    'footer.degradedMode': 'Mock (live call failed)',
+    'footer.tokensUsed': '{n} tokens used this session',
+    'footer.noCalls': 'No AI calls yet',
+    'footer.balanceNote': 'Credits remaining — check your provider dashboard',
+    'footer.lastCall': 'Last call: {task} · {status}',
+    'footer.details': 'Details',
   },
 } as const;
 
