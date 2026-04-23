@@ -3,7 +3,6 @@ import type { Metadata, Viewport } from 'next';
 import { getLocale } from '@/lib/i18n/server';
 import { LocaleProvider } from '@/lib/i18n/client';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { Footer } from '@/components/Footer';
 
 export const metadata: Metadata = {
   title: 'Kira2 je',
@@ -23,10 +22,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale}>
       <body className="bg-kira-cream text-kira-dark">
         <LocaleProvider locale={locale}>
-          <div className="mx-auto max-w-md min-h-screen relative flex flex-col">
+          <div className="mx-auto max-w-md min-h-screen relative">
             <LanguageToggle />
-            <div className="flex-1">{children}</div>
-            <Footer />
+            {children}
           </div>
         </LocaleProvider>
       </body>
