@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
+import { AppHeader } from '@/components/AppHeader';
 
 export default function UploadPhoto() {
   const router = useRouter();
@@ -44,13 +44,9 @@ export default function UploadPhoto() {
   }
 
   return (
-    <main className="px-5 pt-6 pb-16">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/onboarding" className="text-kira-dark text-xl">
-          ←
-        </Link>
-        <h1 className="serif text-2xl">{t('upload.photoTitle')}</h1>
-      </div>
+    <main className="min-h-screen flex flex-col">
+      <AppHeader title={t('upload.photoTitle')} backHref="/onboarding" />
+      <div className="flex-1 px-5 pt-6 pb-16 max-w-2xl mx-auto w-full">
 
       <label className="card-sage block text-center cursor-pointer mb-4">
         <input
@@ -93,6 +89,7 @@ export default function UploadPhoto() {
       </button>
 
       {error && <p className="mt-4 text-sm text-kira-red text-center">{error}</p>}
+      </div>
     </main>
   );
 }

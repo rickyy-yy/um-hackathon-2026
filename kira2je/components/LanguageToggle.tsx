@@ -1,14 +1,10 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
 import { useLocale } from '@/lib/i18n/client';
 import type { Locale } from '@/lib/i18n/dictionary';
 
 export function LanguageToggle() {
-  const router = useRouter();
   const current = useLocale();
-  const [isPending, startTransition] = useTransition();
 
   async function swap() {
     const next: Locale = current === 'ms' ? 'en' : 'ms';
@@ -17,14 +13,13 @@ export function LanguageToggle() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ locale: next }),
     });
-    startTransition(() => router.refresh());
+    window.location.reload();
   }
 
   return (
     <button
       onClick={swap}
-      disabled={isPending}
-      className="fixed top-3 right-3 z-50 rounded-full bg-white/90 text-kira-dark text-xs font-semibold px-3 py-1.5 shadow-sm border border-kira-sage/70 hover:bg-white disabled:opacity-60"
+      className="rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 border border-white/40 transition-colors shrink-0"
       aria-label="Change language"
     >
       {current === 'ms' ? 'EN' : 'BM'}

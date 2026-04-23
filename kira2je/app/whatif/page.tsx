@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useT, useLocale } from '@/lib/i18n/client';
+import { AppHeader } from '@/components/AppHeader';
 import type { WhatIfAnswer } from '@/lib/schemas';
 
 type Turn = { id: string; question: string; answer: WhatIfAnswer };
@@ -61,15 +61,11 @@ function WhatIfInner() {
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="bg-kira-teal text-white px-5 py-4 flex items-center gap-3">
-        <Link href={`/dashboard?reportId=${reportId}`} className="text-white/90 text-xl">
-          ←
-        </Link>
-        <div>
-          <h1 className="serif text-xl leading-tight">{t('whatif.title')}</h1>
-          <p className="text-xs opacity-80">{t('whatif.subtitle')}</p>
-        </div>
-      </header>
+      <AppHeader
+        title={t('whatif.title')}
+        subtitle={t('whatif.subtitle')}
+        backHref={`/dashboard?reportId=${reportId}`}
+      />
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
         {turns.length === 0 && (

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useT, useLocale } from '@/lib/i18n/client';
+import { AppHeader } from '@/components/AppHeader';
 
 type Msg = { from: 'ai' | 'user'; text: string };
 
@@ -42,16 +42,32 @@ export default function ChatIntake() {
   const [step, setStep] = useState(0);
   const [msgs, setMsgs] = useState<Msg[]>([{ from: 'ai', text: SCRIPT[0][locale] }]);
   const [input, setInput] = useState('');
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [msgs.length]);
 
+  async function submitChat(collectedAnswers: Record<string, string>) {
+    const res = await fetch('/api/upload/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ answers: collectedAnswers }),
+    });
+    const j = await res.json();
+    setTimeout(() => {
+      if (j.ok) router.push(`/processing?reportId=${j.reportId}`);
+      else router.push('/dashboard');
+    }, 2000);
+  }
+
   function advance() {
     if (!input.trim()) return;
     const userText = input.trim();
+    const updatedAnswers = { ...answers, [SCRIPT[step].key]: userText };
     const next = step + 1;
+    setAnswers(updatedAnswers);
     setMsgs((m) => [...m, { from: 'user', text: userText }]);
     setInput('');
 
@@ -60,7 +76,7 @@ export default function ChatIntake() {
         setMsgs((m) => [...m, { from: 'ai', text: SCRIPT[next][locale] }]);
         setStep(next);
         if (SCRIPT[next].key === 'done') {
-          setTimeout(() => router.push('/dashboard'), 2500);
+          submitChat(updatedAnswers);
         }
       }
     }, 500);
@@ -68,12 +84,7 @@ export default function ChatIntake() {
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="bg-kira-teal text-white px-5 py-4 flex items-center gap-3">
-        <Link href="/onboarding" className="text-white/90 text-xl">
-          ←
-        </Link>
-        <h1 className="serif text-xl">{t('upload.chatTitle')}</h1>
-      </header>
+      <AppHeader title={t('upload.chatTitle')} backHref="/onboarding" />
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
         {msgs.map((m, i) => (

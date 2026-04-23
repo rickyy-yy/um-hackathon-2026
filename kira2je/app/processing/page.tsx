@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useT, useLocale } from '@/lib/i18n/client';
+import { AppHeader } from '@/components/AppHeader';
 
 type ChatMsg = { from: 'ai' | 'user'; text: string };
 
@@ -63,11 +64,8 @@ function ProcessingInner() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col">
-      <header className="bg-kira-teal text-white px-5 py-4">
-        <h1 className="serif text-xl">{t('processing.title')}</h1>
-        <p className="text-xs opacity-80">{t('processing.subtitle')}</p>
-      </header>
+    <main className="min-h-screen flex flex-col max-w-3xl mx-auto w-full">
+      <AppHeader title={t('processing.title')} subtitle={t('processing.subtitle')} />
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
         {msgs.map((m, i) => (

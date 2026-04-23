@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
 import { useT } from '@/lib/i18n/client';
+import { AppHeader } from '@/components/AppHeader';
 
 type Row = {
   item: string;
@@ -76,13 +76,9 @@ export default function UploadCsv() {
   }
 
   return (
-    <main className="px-5 pt-6 pb-16">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/onboarding" className="text-kira-dark text-xl">
-          ←
-        </Link>
-        <h1 className="serif text-2xl">{t('upload.csvTitle')}</h1>
-      </div>
+    <main className="min-h-screen flex flex-col">
+      <AppHeader title={t('upload.csvTitle')} backHref="/onboarding" />
+      <div className="flex-1 px-5 pt-6 pb-16 max-w-2xl mx-auto w-full">
 
       {!rows ? (
         <div className="space-y-4">
@@ -166,6 +162,7 @@ export default function UploadCsv() {
       )}
 
       {error && <p className="mt-4 text-sm text-kira-red text-center">{error}</p>}
+      </div>
     </main>
   );
 }
