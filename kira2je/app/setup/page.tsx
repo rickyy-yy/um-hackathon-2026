@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { ArrowLeft, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -53,12 +53,12 @@ const L: Record<Lang, {
 
 const PRONOUNS = ['Boss', 'Cik', 'Encik', 'Puan'];
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 16 },
   show: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.07, duration: 0.35, ease: 'easeOut' },
+    transition: { delay: i * 0.07, duration: 0.35, ease: 'easeOut' as const },
   }),
 };
 
