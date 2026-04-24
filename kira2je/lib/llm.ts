@@ -1,4 +1,6 @@
 import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
+import { createWorker } from 'tesseract.js';
 import {
   AnalyticsResult,
   FullReport,
@@ -41,11 +43,41 @@ let client: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!client) {
     client = new OpenAI({
-      baseURL: process.env.LLM_BASE_URL || 'https://api.openai.com/v1',
+      baseURL: process.env.LLM_BASE_URL || 'https://api.ilmu.ai/v1',
       apiKey: process.env.LLM_API_KEY || 'missing-key',
     });
   }
   return client;
+}
+
+async function describeWithGemini(imageBase64: string, mimeType: string): Promise<string> {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+  const response = await ai.models.generateContent({
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    contents: [
+      {
+        parts: [
+          {
+            text: 'Describe all text, numbers, dates, and table data visible in this handwritten Malaysian F&B stall sales record. Be specific — include every item name, quantity, unit price, and date you can read.',
+          },
+          { inlineData: { mimeType, data: imageBase64 } },
+        ],
+      },
+    ],
+  });
+  const text = response.text;
+  if (!text) throw new Error('Gemini returned empty response');
+  return text;
+}
+
+async function describeWithTesseract(imageBase64: string): Promise<string> {
+  const worker = await createWorker('eng');
+  try {
+    const result = await worker.recognize(Buffer.from(imageBase64, 'base64'));
+    return result.data.text;
+  } finally {
+    await worker.terminate();
+  }
 }
 
 async function withRetry<T>(
@@ -74,6 +106,13 @@ async function withRetry<T>(
   throw lastErr;
 }
 
+function extractJson(content: string): unknown {
+  const trimmed = content.trim();
+  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  if (match) return JSON.parse(match[1]);
+  return JSON.parse(trimmed);
+}
+
 async function chatJson<T>(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   label: string
@@ -88,7 +127,7 @@ async function chatJson<T>(
     label
   );
   const content = resp.choices[0]?.message?.content ?? '{}';
-  return JSON.parse(content) as T;
+  return extractJson(content) as T;
 }
 
 function mockFor<T extends LlmTask>(args: T, locale: Locale): LlmResult<T['task']> {
@@ -135,29 +174,30 @@ async function callReal<T extends LlmTask>(
 
   switch (args.task) {
     case 'ocr': {
-      const resp = await withRetry(
-        () =>
-          getClient().chat.completions.create({
-            model: process.env.LLM_MODEL || 'gpt-4o-mini',
-            response_format: { type: 'json_object' },
-            messages: [
-              { role: 'system', content: systemMsg },
-              {
-                role: 'user',
-                content: [
-                  { type: 'text', text: ocrPrompt(locale) },
-                  {
-                    type: 'image_url',
-                    image_url: { url: `data:${args.mimeType};base64,${args.imageBase64}` },
-                  },
-                ],
-              },
-            ],
-          }),
+      // Step 1: extract text from image — Gemini primary, tesseract.js fallback
+      let imageText: string;
+      try {
+        imageText = await describeWithGemini(args.imageBase64, args.mimeType);
+      } catch (geminiErr) {
+        console.warn(
+          '[llm:ocr-gemini] Gemini failed, falling back to tesseract.js:',
+          (geminiErr as Error)?.message ?? geminiErr
+        );
+        imageText = await describeWithTesseract(args.imageBase64);
+      }
+
+      // Step 2: GLM-5.1 extracts structured JSON from the text
+      const raw = await chatJson<unknown>(
+        [
+          { role: 'system', content: systemMsg },
+          {
+            role: 'user',
+            content: `${ocrPrompt(locale)}\n\nImage content:\n${imageText}`,
+          },
+        ],
         'ocr'
       );
-      const parsed = JSON.parse(resp.choices[0]?.message?.content ?? '{}');
-      return OcrExtraction.parse(parsed) as LlmResult<T['task']>;
+      return OcrExtraction.parse(raw) as LlmResult<T['task']>;
     }
     case 'followup': {
       const raw = await chatJson<unknown>(
