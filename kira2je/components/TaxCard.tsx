@@ -70,16 +70,16 @@ export function TaxCard({
       <p className="text-sm text-kira-muted mb-4">{t('tax.subtitle')}</p>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-kira-cream rounded-btn p-3">
-          <div className="text-xs text-kira-muted">{t('tax.annual')}</div>
-          <div className="serif text-2xl">
-            RM{current.annualTax.toLocaleString()}
+        <div className="bg-kira-cream rounded-btn p-3 min-w-0">
+          <div className="text-xs text-kira-muted truncate">{t('tax.annual')}</div>
+          <div className="serif text-lg sm:text-xl lg:text-2xl whitespace-nowrap overflow-hidden text-ellipsis">
+            RM{current.annualTax.toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
-        <div className="bg-kira-cream rounded-btn p-3">
-          <div className="text-xs text-kira-muted">{t('tax.monthly')}</div>
-          <div className="serif text-2xl">
-            RM{current.monthlyTax.toLocaleString()}
+        <div className="bg-kira-cream rounded-btn p-3 min-w-0">
+          <div className="text-xs text-kira-muted truncate">{t('tax.monthly')}</div>
+          <div className="serif text-lg sm:text-xl lg:text-2xl whitespace-nowrap overflow-hidden text-ellipsis">
+            RM{current.monthlyTax.toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>

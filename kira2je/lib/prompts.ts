@@ -11,7 +11,23 @@ export function systemPrompt(locale: Locale): string {
 // Legacy export kept for callers that import SYSTEM_BM directly (none in app)
 export const SYSTEM_BM = systemPrompt('ms');
 
-export function ocrPrompt(locale: Locale = 'ms'): string {
+export function ocrPrompt(locale: Locale = 'ms', noisyOcr = false): string {
+  const noiseNote = noisyOcr
+    ? locale === 'en'
+      ? `\n\nIMPORTANT: The text below came from Tesseract OCR on handwritten text — it contains noise and errors. Apply these corrections:
+- Prices/numbers: 'é'→'6', 'o'→'0', '-'→'.', '|'→'1', 'S'→'5', 'B'→'8', 'G'→'6'
+- Dates like "jole/26" → "01/04/26" (day/month/year), "b3/ou/26" → "03/04/26"
+- Item names: "Nast Goren"→"Nasi Goreng", "Mee Qoveno"→"Mee Goreng", "Sivap"→"Sirap"
+- Extract ALL rows that have at least a number pattern (price or quantity)
+- If date is unclear, use the nearest clear date in the same block`
+      : `\n\nPENTING: Teks di bawah dari Tesseract OCR pada tulisan tangan — ia mengandungi hingar dan ralat. Guna pembetulan ini:
+- Harga/nombor: 'é'→'6', 'o'→'0', '-'→'.', '|'→'1', 'S'→'5', 'B'→'8', 'G'→'6'
+- Tarikh seperti "jole/26" → "01/04/26" (hari/bulan/tahun), "b3/ou/26" → "03/04/26"
+- Nama item: "Nast Goren"→"Nasi Goreng", "Mee Qoveno"→"Mee Goreng", "Sivap"→"Sirap"
+- Ekstrak SEMUA baris yang ada corak nombor (harga atau kuantiti)
+- Jika tarikh tidak jelas, guna tarikh terdekat yang jelas dalam blok yang sama`
+    : '';
+
   if (locale === 'en') {
     return `You are analyzing a photo of handwritten sales records from a Malaysian F&B stall.
 Extract all sales data and return as JSON:
@@ -21,7 +37,7 @@ Extract all sales data and return as JSON:
   "missingInfo": ["list of what you couldn't determine"]
 }
 Records may be in BM, English, or mixed. Handwriting may be messy.
-Interpret abbreviations (NL = nasi lemak, TT = teh tarik, MG = mee goreng, etc.)`;
+Interpret abbreviations (NL = nasi lemak, TT = teh tarik, MG = mee goreng, etc.)${noiseNote}`;
   }
   return `Anda sedang analisis gambar rekod jualan tulisan tangan dari gerai makanan Malaysia.
 Ekstrak semua data jualan dan kembalikan sebagai JSON:
@@ -31,7 +47,7 @@ Ekstrak semua data jualan dan kembalikan sebagai JSON:
   "missingInfo": ["senarai apa yang tak pasti"]
 }
 Rekod mungkin dalam BM, Inggeris, atau campuran. Tulisan mungkin tak kemas.
-Tafsir singkatan (NL = nasi lemak, TT = teh tarik, MG = mee goreng, dll.)`;
+Tafsir singkatan (NL = nasi lemak, TT = teh tarik, MG = mee goreng, dll.)${noiseNote}`;
 }
 
 export function followupPrompt(

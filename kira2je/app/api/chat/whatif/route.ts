@@ -48,7 +48,14 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const reportId = url.searchParams.get('reportId');
-  if (!reportId) return NextResponse.json({ ok: true, turns: [] });
+  if (!reportId) {
+    const latest = await prisma.report.findFirst({
+      where: { userId: session.userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return NextResponse.json({ ok: true, turns: [], reportId: latest?.id ?? null });
+  }
 
   const turns = await prisma.whatIfTurn.findMany({
     where: { userId: session.userId, reportId },

@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { llm } from '@/lib/llm';
+import { mockReport } from '@/lib/mocks';
 import type { AnalyticsResult, FullReport, ReportNarration } from '@/lib/schemas';
 import { serverT } from '@/lib/i18n/server';
 import type { Locale } from '@/lib/i18n/dictionary';
 import { DashboardShell } from '@/components/DashboardShell';
-import { LanguageToggle } from '@/components/LanguageToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,19 +31,30 @@ async function loadReport(
   };
 
   let narration = parsed.narration;
-  // Regenerate if no narration, or if cached narration is in the wrong language
   if (!narration || parsed.narrationLocale !== locale) {
-    narration = await llm({ task: 'report', analytics: parsed.analytics, locale });
-    await prisma.report.update({
-      where: { id: report.id },
-      data: {
-        reportData: JSON.stringify({
-          analytics: parsed.analytics,
-          narration,
-          narrationLocale: locale,
-        }),
-      },
-    });
+    // Race the LLM against a 7-second timeout; fall back to existing narration if slow
+    const existing = narration;
+    const timeoutFallback = new Promise<null>((resolve) => setTimeout(() => resolve(null), 7000));
+    const fresh = await Promise.race([
+      llm({ task: 'report', analytics: parsed.analytics, locale }).catch(() => null),
+      timeoutFallback,
+    ]);
+    if (fresh) {
+      narration = fresh;
+      await prisma.report.update({
+        where: { id: report.id },
+        data: {
+          reportData: JSON.stringify({
+            analytics: parsed.analytics,
+            narration,
+            narrationLocale: locale,
+          }),
+        },
+      });
+    } else if (!narration) {
+      // No cached narration and LLM timed out — fall back to mock so the page doesn't crash
+      narration = mockReport(parsed.analytics, locale);
+    }
   }
 
   return { id: report.id, full: { analytics: parsed.analytics, narration } };
@@ -90,7 +101,6 @@ export default async function Dashboard({
             >
               {t('dashboard.updateData')}
             </Link>
-            <LanguageToggle />
           </div>
         </div>
       </header>

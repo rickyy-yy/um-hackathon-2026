@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { AppHeader } from '@/components/AppHeader';
 import type { WhatIfAnswer } from '@/lib/schemas';
@@ -10,6 +10,7 @@ type Turn = { id: string; question: string; answer: WhatIfAnswer };
 
 function WhatIfInner() {
   const sp = useSearchParams();
+  const router = useRouter();
   const t = useT();
   const locale = useLocale();
   const reportId = sp.get('reportId') ?? '';
@@ -26,13 +27,20 @@ function WhatIfInner() {
   ];
 
   useEffect(() => {
-    if (!reportId) return;
+    if (!reportId) {
+      fetch('/api/chat/whatif')
+        .then((r) => r.json())
+        .then((j) => {
+          if (j.ok && j.reportId) router.replace(`/whatif?reportId=${j.reportId}`);
+        });
+      return;
+    }
     fetch(`/api/chat/whatif?reportId=${reportId}`)
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setTurns(j.turns);
       });
-  }, [reportId]);
+  }, [reportId, router]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -78,6 +86,20 @@ function WhatIfInner() {
                 key={s}
                 onClick={() => ask(s)}
                 className="w-full text-left card-sage text-sm"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+        {turns.length > 0 && (
+          <div className="flex flex-wrap gap-2 pb-1">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => ask(s)}
+                disabled={loading}
+                className="text-xs card-sage py-1.5 px-3 rounded-btn disabled:opacity-50"
               >
                 {s}
               </button>

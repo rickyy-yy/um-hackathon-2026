@@ -20,7 +20,11 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
 
   const body = (await req.json()) as { rows: Row[] };
-  const rows = body.rows?.filter((r) => r && r.item && r.price != null && r.quantity != null);
+  const rows = body.rows?.filter((r) => {
+    if (!r || !r.item || r.price == null || r.quantity == null) return false;
+    const d = new Date(r.date);
+    return !isNaN(d.getTime());
+  });
   if (!rows || rows.length === 0) {
     return NextResponse.json({ ok: false, error: 'Tiada data yang sah dalam fail' }, { status: 400 });
   }
@@ -30,21 +34,24 @@ export async function POST(req: Request) {
   });
   await prisma.menuItem.deleteMany({ where: { userId: session.userId } });
 
-  const byItem = new Map<string, { price: number; costPercent?: number; commission?: number; channel?: string; first: Date }>();
+  const byItem = new Map<string, { price: number; costPercent?: number; commission?: number; isDelivery: boolean; first: Date }>();
   for (const r of rows) {
     const key = r.item.trim();
     const existing = byItem.get(key);
     const d = new Date(r.date);
+    const isDeliveryRow = r.channel === 'grabfood' || r.channel === 'foodpanda' || (r.delivery_commission != null && r.delivery_commission > 0);
     if (!existing) {
       byItem.set(key, {
         price: r.price,
         costPercent: r.cost_percent ?? undefined,
         commission: r.delivery_commission ?? undefined,
-        channel: r.channel,
+        isDelivery: isDeliveryRow,
         first: d,
       });
     } else {
       if (d < existing.first) existing.first = d;
+      if (isDeliveryRow) existing.isDelivery = true;
+      if (r.delivery_commission != null && existing.commission == null) existing.commission = r.delivery_commission;
     }
   }
 
@@ -57,8 +64,9 @@ export async function POST(req: Request) {
         price: meta.price,
         costPercent: meta.costPercent ?? 0.35,
         category: inferCategory(name),
-        isDelivery: meta.channel === 'grabfood' || meta.channel === 'foodpanda' || meta.commission != null,
+        isDelivery: meta.isDelivery,
         deliveryCommission: meta.commission ?? null,
+        addedAt: meta.first,
       },
     });
     itemRecords[name] = created.id;

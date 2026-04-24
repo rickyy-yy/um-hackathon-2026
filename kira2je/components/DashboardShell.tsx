@@ -152,10 +152,12 @@ export function DashboardShell({
             <p className="text-sm text-kira-dark leading-relaxed bg-white rounded-card p-4">
               {n.summary}
             </p>
-            <div className="grid grid-cols-2 gap-3 lg:gap-6">
-              <div className="card">
-                <div className="text-xs text-kira-muted">{t('dashboard.revenue')}</div>
-                <div className="serif text-2xl mt-1">RM{a.totalRevenue.toLocaleString()}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="card min-w-0">
+                <div className="text-xs text-kira-muted truncate">{t('dashboard.revenue')}</div>
+                <div className="serif text-lg sm:text-xl lg:text-2xl mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                  RM{a.totalRevenue.toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
                 <div
                   className={`text-xs mt-1 ${
                     a.revenueChangePct >= 0 ? 'text-kira-teal' : 'text-kira-red'
@@ -165,9 +167,11 @@ export function DashboardShell({
                   {Math.abs(a.revenueChangePct).toFixed(1)}% {t('dashboard.vsLastMonth')}
                 </div>
               </div>
-              <div className="card">
-                <div className="text-xs text-kira-muted">{t('dashboard.profit')}</div>
-                <div className="serif text-2xl mt-1">RM{a.estimatedProfit.toLocaleString()}</div>
+              <div className="card min-w-0">
+                <div className="text-xs text-kira-muted truncate">{t('dashboard.profit')}</div>
+                <div className="serif text-lg sm:text-xl lg:text-2xl mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                  RM{a.estimatedProfit.toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
                 <div
                   className={`text-xs mt-1 ${
                     a.profitChangePct >= 0 ? 'text-kira-teal' : 'text-kira-red'

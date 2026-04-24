@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { LanguageToggle } from './LanguageToggle';
 
 export function AppHeader({
@@ -17,8 +18,8 @@ export function AppHeader({
       <div className="flex justify-between items-center gap-3">
         <div className="flex items-center gap-3 min-w-0">
           {backHref && (
-            <Link href={backHref} className="text-white/90 text-xl shrink-0">
-              ←
+            <Link href={backHref} className="text-white/90 hover:text-white transition-opacity shrink-0">
+              <ArrowLeft size={20} />
             </Link>
           )}
           <div className="min-w-0">

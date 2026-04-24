@@ -16,6 +16,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'Tiada gambar dihantar' }, { status: 400 });
   }
 
+  try {
+    return await processPhotos(session.userId, images);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[photo-upload] failed:', msg);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
+}
+
+async function processPhotos(
+  userId: string,
+  images: { name: string; base64: string; mimeType: string }[]
+) {
   const aggregated: { name: string; quantity: number; price: number; date: string }[] = [];
   for (const img of images) {
     const result = await llm({
@@ -26,10 +39,17 @@ export async function POST(req: Request) {
     aggregated.push(...result.items);
   }
 
+  if (aggregated.length === 0) {
+    return NextResponse.json(
+      { ok: false, error: 'Tiada item dijumpai dalam gambar. Cuba gambar yang lebih jelas.' },
+      { status: 422 }
+    );
+  }
+
   await prisma.salesRecord.deleteMany({
-    where: { menuItem: { userId: session.userId } },
+    where: { menuItem: { userId } },
   });
-  await prisma.menuItem.deleteMany({ where: { userId: session.userId } });
+  await prisma.menuItem.deleteMany({ where: { userId } });
 
   const byItem = new Map<string, { price: number; first: Date }>();
   for (const r of aggregated) {
@@ -43,11 +63,12 @@ export async function POST(req: Request) {
   for (const [name, meta] of byItem) {
     const item = await prisma.menuItem.create({
       data: {
-        userId: session.userId,
+        userId,
         name,
         price: meta.price,
         costPercent: guessCostPercent(name),
         category: inferCategory(name),
+        addedAt: meta.first,
       },
     });
     created[name] = item.id;
@@ -62,7 +83,7 @@ export async function POST(req: Request) {
     })),
   });
 
-  const analytics = await computeAnalytics(session.userId);
+  const analytics = await computeAnalytics(userId);
   const locale = await getLocale();
   let narration = null;
   try {
@@ -73,7 +94,7 @@ export async function POST(req: Request) {
 
   const report = await prisma.report.create({
     data: {
-      userId: session.userId,
+      userId,
       dateRangeFrom: new Date(analytics.dateRangeFrom),
       dateRangeTo: new Date(analytics.dateRangeTo),
       reportData: JSON.stringify({ analytics, narration, narrationLocale: locale }),

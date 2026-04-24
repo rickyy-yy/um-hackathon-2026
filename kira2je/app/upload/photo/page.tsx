@@ -11,10 +11,17 @@ export default function UploadPhoto() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   function addFiles(list: FileList | null) {
     if (!list) return;
     setFiles((prev) => [...prev, ...Array.from(list)]);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    addFiles(e.dataTransfer.files);
   }
 
   async function submit() {
@@ -48,7 +55,16 @@ export default function UploadPhoto() {
       <AppHeader title={t('upload.photoTitle')} backHref="/onboarding" />
       <div className="flex-1 px-5 pt-6 pb-16 max-w-2xl mx-auto w-full">
 
-      <label className="card-sage block text-center cursor-pointer mb-4">
+      <label
+        className={`block text-center cursor-pointer mb-4 border-2 border-dashed rounded-xl p-8 transition-colors ${
+          dragging
+            ? 'border-kira-teal bg-kira-teal/10'
+            : 'border-kira-sage bg-kira-sage/30 hover:border-kira-teal hover:bg-kira-teal/5'
+        }`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+      >
         <input
           type="file"
           accept="image/*"
@@ -60,6 +76,9 @@ export default function UploadPhoto() {
         <div className="text-4xl mb-3">📷</div>
         <div className="font-semibold mb-1">{t('upload.photoPicker')}</div>
         <div className="text-sm text-kira-muted">{t('upload.photoDesc')}</div>
+        <div className="text-xs text-kira-muted mt-2 opacity-70">
+          {dragging ? '↓ Lepas di sini' : 'Klik atau seret & lepas gambar di sini'}
+        </div>
       </label>
 
       {files.length > 0 && (
@@ -71,9 +90,13 @@ export default function UploadPhoto() {
             {files.map((f, i) => (
               <div
                 key={i}
-                className="aspect-square bg-white rounded-btn border border-kira-sage/50 flex items-center justify-center text-xs text-kira-muted p-2 overflow-hidden"
+                className="aspect-square bg-white rounded-btn border border-kira-sage/50 overflow-hidden relative"
               >
-                {f.name.slice(0, 18)}
+                <img
+                  src={URL.createObjectURL(f)}
+                  alt={f.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
             ))}
           </div>
@@ -83,12 +106,25 @@ export default function UploadPhoto() {
       <button
         onClick={submit}
         disabled={uploading || files.length === 0}
-        className="btn-primary w-full disabled:opacity-50"
+        className="btn-primary w-full disabled:opacity-40"
       >
-        {uploading ? t('upload.photoSubmitting') : t('upload.photoSubmit')}
+        {uploading
+          ? t('upload.photoSubmitting')
+          : files.length === 0
+          ? 'Pilih gambar dahulu ↑'
+          : t('upload.photoSubmit')}
       </button>
 
-      {error && <p className="mt-4 text-sm text-kira-red text-center">{error}</p>}
+      {error && (
+        <div className="mt-4 rounded-xl bg-kira-red/10 border border-kira-red/30 p-4">
+          <p className="text-sm text-kira-red font-medium mb-1">{error}</p>
+          {error.includes('item') && (
+            <p className="text-xs text-kira-muted">
+              Petua: OCR berfungsi terbaik dengan resit bercetak. Untuk rekod tulisan tangan, pastikan gambar terang dan tulisan jelas.
+            </p>
+          )}
+        </div>
+      )}
       </div>
     </main>
   );

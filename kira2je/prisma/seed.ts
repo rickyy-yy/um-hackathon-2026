@@ -24,7 +24,10 @@ async function main() {
     data: {
       phone: '+60123456789',
       name: 'Mak Cik Aminah',
+      pronoun: 'Puan',
+      stallName: 'Warung Aminah',
       area: 'Kajang',
+      locale: 'ms',
     },
   });
   console.log(`Created user: ${aminah.name} (${aminah.id})`);

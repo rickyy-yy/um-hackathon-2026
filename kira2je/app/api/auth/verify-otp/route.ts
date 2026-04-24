@@ -33,6 +33,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     isNew,
+    hasProfile: !!user.name,
     hasReport: !!latestReport,
     reportId: latestReport?.id ?? null,
   });

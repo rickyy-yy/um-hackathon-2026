@@ -50,10 +50,14 @@ function getClient(): OpenAI {
   return client;
 }
 
-async function describeWithGemini(imageBase64: string, mimeType: string): Promise<string> {
+async function callGeminiModel(
+  model: string,
+  imageBase64: string,
+  mimeType: string
+): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
   const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    model,
     contents: [
       {
         parts: [
@@ -70,14 +74,71 @@ async function describeWithGemini(imageBase64: string, mimeType: string): Promis
   return text;
 }
 
-async function describeWithTesseract(imageBase64: string): Promise<string> {
-  const worker = await createWorker('eng');
+async function describeWithGemini(imageBase64: string, mimeType: string): Promise<string> {
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  // Fallback chain: primary → lite variant (less traffic) → give up
+  const fallbackModels = primaryModel === 'gemini-2.5-flash'
+    ? ['gemini-2.5-flash-lite']
+    : [];
+
   try {
-    const result = await worker.recognize(Buffer.from(imageBase64, 'base64'));
-    return result.data.text;
+    return await withRetry(
+      () => callGeminiModel(primaryModel, imageBase64, mimeType),
+      `gemini-${primaryModel}`,
+      3
+    );
+  } catch (primaryErr) {
+    for (const fallback of fallbackModels) {
+      console.warn(`[llm:ocr-gemini] primary failed, trying ${fallback}:`, (primaryErr as Error)?.message);
+      try {
+        return await withRetry(
+          () => callGeminiModel(fallback, imageBase64, mimeType),
+          `gemini-${fallback}`,
+          2
+        );
+      } catch {
+        // try next fallback
+      }
+    }
+    throw primaryErr;
+  }
+}
+
+async function preprocessImage(imageBase64: string, rotateDeg: number): Promise<Buffer> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Jimp } = require('jimp');
+  const raw = Buffer.from(imageBase64, 'base64');
+  const img = await Jimp.fromBuffer(raw);
+  img.greyscale().contrast(0.5);
+  if (rotateDeg > 0) img.rotate(rotateDeg);
+  return img.getBuffer('image/jpeg');
+}
+
+async function runTesseract(buf: Buffer): Promise<{ text: string; confidence: number }> {
+  const worker = await createWorker('eng', 1, { logger: () => {} });
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: '6' as Parameters<typeof worker.setParameters>[0]['tessedit_pageseg_mode'] });
+    const result = await worker.recognize(buf);
+    return { text: result.data.text, confidence: result.data.confidence };
   } finally {
     await worker.terminate();
   }
+}
+
+async function describeWithTesseract(imageBase64: string): Promise<{ text: string; confidence: number }> {
+  // Try original and 90° rotation (the two most common phone photo orientations).
+  // Greyscale + contrast preprocessing improves recognition on handwritten text.
+  const [orig, rot90] = await Promise.all([
+    preprocessImage(imageBase64, 0),
+    preprocessImage(imageBase64, 90),
+  ]);
+  const [r0, r90] = await Promise.all([
+    runTesseract(orig),
+    runTesseract(rot90),
+  ]);
+  const best = r0.confidence >= r90.confidence ? r0 : r90;
+  console.warn(`[llm:tesseract] confidence: 0°=${r0.confidence.toFixed(0)}% 90°=${r90.confidence.toFixed(0)}% — using ${r0.confidence >= r90.confidence ? '0°' : '90°'}`);
+  return best;
 }
 
 async function withRetry<T>(
@@ -176,6 +237,7 @@ async function callReal<T extends LlmTask>(
     case 'ocr': {
       // Step 1: extract text from image — Gemini primary, tesseract.js fallback
       let imageText: string;
+      let tesseractConfidence: number | null = null;
       try {
         imageText = await describeWithGemini(args.imageBase64, args.mimeType);
       } catch (geminiErr) {
@@ -183,16 +245,19 @@ async function callReal<T extends LlmTask>(
           '[llm:ocr-gemini] Gemini failed, falling back to tesseract.js:',
           (geminiErr as Error)?.message ?? geminiErr
         );
-        imageText = await describeWithTesseract(args.imageBase64);
+        const tResult = await describeWithTesseract(args.imageBase64);
+        imageText = tResult.text;
+        tesseractConfidence = tResult.confidence;
       }
 
       // Step 2: GLM-5.1 extracts structured JSON from the text
+      const isNoisyOcr = tesseractConfidence !== null && tesseractConfidence < 60;
       const raw = await chatJson<unknown>(
         [
           { role: 'system', content: systemMsg },
           {
             role: 'user',
-            content: `${ocrPrompt(locale)}\n\nImage content:\n${imageText}`,
+            content: `${ocrPrompt(locale, isNoisyOcr)}\n\nImage content:\n${imageText}`,
           },
         ],
         'ocr'

@@ -82,9 +82,26 @@ export default function ChatIntake() {
     }, 500);
   }
 
+  const totalSteps = SCRIPT.length - 1;
+  const currentStep = Math.min(step, totalSteps);
+
   return (
     <main className="min-h-screen flex flex-col">
       <AppHeader title={t('upload.chatTitle')} backHref="/onboarding" />
+
+      {/* Step progress bar */}
+      <div className="px-4 pt-3 pb-1">
+        <div className="flex items-center justify-between text-xs text-kira-muted mb-1.5">
+          <span>{locale === 'ms' ? `Soalan ${currentStep + 1} dari ${totalSteps}` : `Question ${currentStep + 1} of ${totalSteps}`}</span>
+          <span>{Math.round((currentStep / totalSteps) * 100)}%</span>
+        </div>
+        <div className="h-1.5 bg-kira-sage/40 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-kira-teal rounded-full transition-all duration-500"
+            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+          />
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
         {msgs.map((m, i) => (

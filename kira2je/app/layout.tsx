@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { Toaster } from 'sonner';
 import { getLocale } from '@/lib/i18n/server';
 import { LocaleProvider } from '@/lib/i18n/client';
 
@@ -23,6 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="min-h-screen relative">
             {children}
           </div>
+          <Toaster position="top-center" richColors />
         </LocaleProvider>
       </body>
     </html>
