@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { LanguageToggle } from './LanguageToggle';
 
 export function AppHeader({
   title,
@@ -29,10 +28,9 @@ export function AppHeader({
             {subtitle && <p className="text-xs opacity-80 mt-0.5">{subtitle}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {action}
-          <LanguageToggle />
-        </div>
+        {action && (
+          <div className="shrink-0">{action}</div>
+        )}
       </div>
     </header>
   );

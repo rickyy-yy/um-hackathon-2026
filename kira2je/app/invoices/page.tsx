@@ -270,14 +270,165 @@ function InvoiceCard({
   isNew,
   onConfirm,
   onDelete,
+  onEdit,
 }: {
   invoice: MockInvoice;
   isNew: boolean;
   onConfirm: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, patch: Partial<MockInvoice>) => void;
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  // Editable draft state
+  const [draftSupplier, setDraftSupplier] = useState(invoice.supplierName ?? '');
+  const [draftDate, setDraftDate] = useState(invoice.invoiceDate);
+  const [draftTotal, setDraftTotal] = useState(String(invoice.total));
+  const [draftItems, setDraftItems] = useState<LineItem[]>(invoice.lineItems);
+
+  function startEdit() {
+    setDraftSupplier(invoice.supplierName ?? '');
+    setDraftDate(invoice.invoiceDate);
+    setDraftTotal(String(invoice.total));
+    setDraftItems(invoice.lineItems.map((li) => ({ ...li })));
+    setEditing(true);
+  }
+
+  function saveEdit() {
+    const total = parseFloat(draftTotal) || 0;
+    const items = draftItems.map((li) => ({
+      ...li,
+      total: li.quantity * li.unitPrice,
+    }));
+    onEdit(invoice.id, {
+      supplierName: draftSupplier.trim() || null,
+      invoiceDate: draftDate,
+      total,
+      lineItems: items,
+      confidence: 'high',
+    });
+    setEditing(false);
+  }
+
+  function updateItem(i: number, field: keyof LineItem, value: string) {
+    setDraftItems((prev) => {
+      const next = [...prev];
+      const parsed = parseFloat(value) || 0;
+      next[i] = {
+        ...next[i],
+        [field]: field === 'description' ? value : parsed,
+      };
+      return next;
+    });
+  }
+
+  function addItem() {
+    setDraftItems((prev) => [
+      ...prev,
+      { description: '', quantity: 1, unitPrice: 0, total: 0 },
+    ]);
+  }
+
+  function removeItem(i: number) {
+    setDraftItems((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  if (editing) {
+    return (
+      <motion.div
+        layout
+        className="card space-y-4 overflow-hidden ring-2 ring-accent-primary/40"
+      >
+        <p className="text-xs font-semibold text-accent-primary uppercase tracking-wide">Editing invoice</p>
+
+        {/* Supplier + date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-xs text-ink-secondary mb-1 block">Supplier</label>
+            <input
+              value={draftSupplier}
+              onChange={(e) => setDraftSupplier(e.target.value)}
+              placeholder="Supplier name"
+              className="w-full border border-paper-200 rounded-btn px-3 py-2 text-sm text-ink-primary bg-paper-50 focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-ink-secondary mb-1 block">Date</label>
+            <input
+              type="date"
+              value={draftDate}
+              onChange={(e) => setDraftDate(e.target.value)}
+              className="w-full border border-paper-200 rounded-btn px-3 py-2 text-sm text-ink-primary bg-paper-50 focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-ink-secondary mb-1 block">Total (RM)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={draftTotal}
+              onChange={(e) => setDraftTotal(e.target.value)}
+              className="w-full border border-paper-200 rounded-btn px-3 py-2 text-sm text-ink-primary bg-paper-50 focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+            />
+          </div>
+        </div>
+
+        {/* Line items */}
+        <div className="space-y-2">
+          <p className="text-xs text-ink-secondary font-medium">Line items</p>
+          {draftItems.map((item, i) => (
+            <div key={i} className="grid grid-cols-[1fr_56px_72px_28px] gap-1.5 items-center">
+              <input
+                value={item.description}
+                onChange={(e) => updateItem(i, 'description', e.target.value)}
+                placeholder="Description"
+                className="border border-paper-200 rounded-btn px-2 py-1.5 text-xs text-ink-primary bg-paper-50 focus:outline-none focus:ring-1 focus:ring-accent-primary/30"
+              />
+              <input
+                type="number"
+                value={item.quantity}
+                onChange={(e) => updateItem(i, 'quantity', e.target.value)}
+                placeholder="Qty"
+                className="border border-paper-200 rounded-btn px-2 py-1.5 text-xs text-ink-primary bg-paper-50 focus:outline-none focus:ring-1 focus:ring-accent-primary/30 text-right"
+              />
+              <input
+                type="number"
+                step="0.01"
+                value={item.unitPrice}
+                onChange={(e) => updateItem(i, 'unitPrice', e.target.value)}
+                placeholder="Price"
+                className="border border-paper-200 rounded-btn px-2 py-1.5 text-xs text-ink-primary bg-paper-50 focus:outline-none focus:ring-1 focus:ring-accent-primary/30 text-right"
+              />
+              <button
+                onClick={() => removeItem(i)}
+                className="text-danger hover:text-danger/70 transition-colors flex items-center justify-center"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={addItem}
+            className="text-xs text-accent-primary hover:underline flex items-center gap-1 mt-1"
+          >
+            <Plus size={12} /> Add item
+          </button>
+        </div>
+
+        {/* Save / Cancel */}
+        <div className="flex gap-3 pt-1">
+          <button onClick={saveEdit} className="flex-1 btn-primary text-sm py-2.5">
+            Save changes
+          </button>
+          <button onClick={() => setEditing(false)} className="btn-secondary text-sm py-2.5 px-4">
+            Cancel
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -342,7 +493,7 @@ function InvoiceCard({
         <button onClick={() => onConfirm(invoice.id)} className="flex-1 btn-primary text-sm py-2.5">
           {t('queue.confirm')}
         </button>
-        <button className="btn-secondary text-sm py-2.5 px-4">{t('queue.edit')}</button>
+        <button onClick={startEdit} className="btn-secondary text-sm py-2.5 px-4">{t('queue.edit')}</button>
         <button onClick={() => onDelete(invoice.id)} className="text-sm text-danger hover:underline px-2 py-2.5">
           {t('queue.delete')}
         </button>
@@ -371,6 +522,10 @@ export default function ConfirmationQueuePage() {
 
   function handleDelete(id: string) {
     setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+  }
+
+  function handleEdit(id: string, patch: Partial<MockInvoice>) {
+    setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, ...patch } : inv)));
   }
 
   function confirmAllHigh() {
@@ -427,6 +582,7 @@ export default function ConfirmationQueuePage() {
                   isNew={invoice.id === newId}
                   onConfirm={handleConfirm}
                   onDelete={handleDelete}
+                  onEdit={handleEdit}
                 />
               ))}
             </AnimatePresence>
