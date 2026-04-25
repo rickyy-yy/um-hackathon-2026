@@ -285,19 +285,22 @@ function InvoiceCard({
   // Editable draft state
   const [draftSupplier, setDraftSupplier] = useState(invoice.supplierName ?? '');
   const [draftDate, setDraftDate] = useState(invoice.invoiceDate);
-  const [draftTotal, setDraftTotal] = useState(String(invoice.total));
+  const [draftTax, setDraftTax] = useState('0');
   const [draftItems, setDraftItems] = useState<LineItem[]>(invoice.lineItems);
+
+  const subtotal = draftItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
+  const taxAmt = parseFloat(draftTax) || 0;
+  const computedTotal = subtotal + taxAmt;
 
   function startEdit() {
     setDraftSupplier(invoice.supplierName ?? '');
     setDraftDate(invoice.invoiceDate);
-    setDraftTotal(String(invoice.total));
+    setDraftTax('0');
     setDraftItems(invoice.lineItems.map((li) => ({ ...li })));
     setEditing(true);
   }
 
   function saveEdit() {
-    const total = parseFloat(draftTotal) || 0;
     const items = draftItems.map((li) => ({
       ...li,
       total: li.quantity * li.unitPrice,
@@ -305,7 +308,7 @@ function InvoiceCard({
     onEdit(invoice.id, {
       supplierName: draftSupplier.trim() || null,
       invoiceDate: draftDate,
-      total,
+      total: computedTotal,
       lineItems: items,
       confidence: 'high',
     });
@@ -344,8 +347,8 @@ function InvoiceCard({
         <p className="text-xs font-semibold text-accent-primary uppercase tracking-wide">Editing invoice</p>
 
         {/* Supplier + date */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
+        <div className="space-y-3">
+          <div>
             <label className="text-xs text-ink-secondary mb-1 block">Supplier</label>
             <input
               value={draftSupplier}
@@ -360,16 +363,6 @@ function InvoiceCard({
               type="date"
               value={draftDate}
               onChange={(e) => setDraftDate(e.target.value)}
-              className="w-full border border-paper-200 rounded-btn px-3 py-2 text-sm text-ink-primary bg-paper-50 focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-ink-secondary mb-1 block">Total (RM)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={draftTotal}
-              onChange={(e) => setDraftTotal(e.target.value)}
               className="w-full border border-paper-200 rounded-btn px-3 py-2 text-sm text-ink-primary bg-paper-50 focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
             />
           </div>
@@ -418,6 +411,32 @@ function InvoiceCard({
           >
             <Plus size={12} /> Add item
           </button>
+        </div>
+
+        {/* Auto-calculated totals */}
+        <div className="bg-paper-100 rounded-btn px-4 py-3 space-y-2 text-sm">
+          <div className="flex justify-between text-ink-secondary">
+            <span>Subtotal</span>
+            <span className="tabular">RM {subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-ink-secondary">Tax / SST / charges</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-ink-secondary text-xs">RM</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={draftTax}
+                onChange={(e) => setDraftTax(e.target.value)}
+                className="w-20 border border-paper-200 rounded-btn px-2 py-1 text-xs text-ink-primary bg-paper-50 focus:outline-none focus:ring-1 focus:ring-accent-primary/30 text-right"
+              />
+            </div>
+          </div>
+          <div className="flex justify-between font-semibold text-ink-primary border-t border-paper-200 pt-2 mt-1">
+            <span>Total</span>
+            <span className="tabular">RM {computedTotal.toFixed(2)}</span>
+          </div>
         </div>
 
         {/* Save / Cancel */}
