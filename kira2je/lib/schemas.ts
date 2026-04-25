@@ -99,7 +99,7 @@ export const Recommendation = z.object({
   rank: z.number(),
   title: z.string(),
   description: z.string(),
-  estimatedMonthlyImpactRm: z.number(),
+  estimatedMonthlyImpactRm: z.number().nullable(),
   riskLevel: z.enum(['low', 'medium', 'high']).optional(),
 });
 

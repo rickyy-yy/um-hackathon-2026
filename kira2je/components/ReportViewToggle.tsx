@@ -357,7 +357,7 @@ function MonthViewPanel({ data }: { data: MonthView }) {
               <p className="text-xs text-ink-secondary leading-relaxed">{rec.description}</p>
               <div className="mt-2">
                 <span className="inline-flex items-center text-xs font-semibold bg-accent-secondary/10 text-accent-secondary rounded-full px-2.5 py-0.5">
-                  Est. +RM {fmt(rec.estimatedMonthlyImpactRm)}/month
+                  Est. +RM {fmt(rec.estimatedMonthlyImpactRm ?? 0)}/month
                 </span>
               </div>
             </div>
