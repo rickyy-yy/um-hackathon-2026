@@ -40,10 +40,19 @@ export async function POST(req: Request) {
     monthView = data;
     trendsView = trends;
   } else {
-    // Fall back to mock for demo
-    const mock = mockReportData(reportMonth);
-    monthView = mock.monthView;
-    trendsView = mock.trendsView;
+    // No reportId — try the user's most recent report, fall back to mock
+    const latest = await prisma.report.findFirst({
+      where: { userId: session.userId },
+      orderBy: { generatedAt: 'desc' },
+    });
+    if (latest) {
+      monthView = typeof latest.monthView === 'string' ? JSON.parse(latest.monthView) : latest.monthView;
+      trendsView = typeof latest.trendsView === 'string' ? JSON.parse(latest.trendsView) : latest.trendsView;
+    } else {
+      const mock = mockReportData(reportMonth);
+      monthView = mock.monthView;
+      trendsView = mock.trendsView;
+    }
   }
 
   const locale = await getLocale();
@@ -72,7 +81,13 @@ export async function GET(req: Request) {
   const reportId = url.searchParams.get('reportId');
 
   if (!reportId) {
-    return NextResponse.json({ ok: true, turns: [] });
+    // No reportId given — find the user's most recent report and redirect to it
+    const latest = await prisma.report.findFirst({
+      where: { userId: session.userId },
+      orderBy: { generatedAt: 'desc' },
+      select: { id: true },
+    });
+    return NextResponse.json({ ok: true, turns: [], reportId: latest?.id ?? null });
   }
 
   const turns = await prisma.whatIfTurn.findMany({
