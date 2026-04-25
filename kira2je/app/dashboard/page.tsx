@@ -92,8 +92,8 @@ function StatusCard({
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-ink-primary truncate">{label}</p>
-        {sublabel && <p className="text-xs text-ink-secondary truncate">{sublabel}</p>}
+        <p className="text-sm font-medium text-ink-primary leading-snug">{label}</p>
+        {sublabel && <p className="text-xs text-ink-secondary mt-0.5">{sublabel}</p>}
       </div>
       <ChevronRight className="w-4 h-4 text-ink-secondary shrink-0 group-hover:text-ink-primary transition-colors" />
     </Link>
@@ -236,7 +236,7 @@ export default async function DashboardPage() {
         <main className="flex-1 flex flex-col gap-4 px-4 py-4 lg:px-0 lg:py-0 min-w-0">
 
           {/* Page title */}
-          <div>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0ms' }}>
             <h1 className="text-xl font-semibold text-ink-primary">
               {t('dashboard.title')}
             </h1>
@@ -246,14 +246,16 @@ export default async function DashboardPage() {
           </div>
 
           {/* Nudge banner */}
-          <NudgeBanner
-            message={nudgeMessage}
-            actionLabel={nudgeAction}
-            href={nudgeHref}
-          />
+          <div className="animate-fade-in-up" style={{ animationDelay: '60ms' }}>
+            <NudgeBanner
+              message={nudgeMessage}
+              actionLabel={nudgeAction}
+              href={nudgeHref}
+            />
+          </div>
 
           {/* Status cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-fade-in-up" style={{ animationDelay: '120ms' }}>
             <StatusCard
               icon={<FileText className="w-5 h-5" />}
               label={t('dashboard.invoicesCount', {
@@ -288,7 +290,7 @@ export default async function DashboardPage() {
 
           {/* Quick stats (shown when report exists) */}
           {hasReport && (
-            <section>
+            <section className="animate-fade-in-up" style={{ animationDelay: '180ms' }}>
               <p className="section-label mb-3">
                 {monthLabel} summary
               </p>
@@ -318,7 +320,7 @@ export default async function DashboardPage() {
 
           {/* Empty state fallback */}
           {!hasReport && invoiceCount === 0 && (
-            <div className="card flex flex-col items-center text-center py-12 gap-3">
+            <div className="card flex flex-col items-center text-center py-12 gap-3 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
               <div className="w-12 h-12 rounded-full bg-paper-200 flex items-center justify-center">
                 <BarChart3 className="w-6 h-6 text-ink-secondary" />
               </div>
@@ -331,7 +333,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Quick actions row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 animate-fade-in-up" style={{ animationDelay: '240ms' }}>
             <Link
               href="/upload/invoice"
               className="btn-secondary text-sm text-center py-2.5 min-h-0"

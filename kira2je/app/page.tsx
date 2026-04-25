@@ -198,7 +198,7 @@ export default function LoginPage() {
                 <span className={`ml-0.5 ${settled ? 'invisible' : 'animate-cursor'}`}>|</span>
               </h2>
               <p className="text-sm text-ink-secondary mb-5">
-                Masukkan nombor telefon anda. Kami akan hantar kod 6 digit.
+                {t('login.phoneHint')}
               </p>
               <div className="flex items-center gap-2 mb-5">
                 <div className="bg-paper-200/50 rounded-btn px-4 py-3 font-semibold text-ink-primary shrink-0">+60</div>
@@ -207,7 +207,7 @@ export default function LoginPage() {
               </div>
               <motion.button onClick={sendOtp} disabled={loading}
                 className="btn-primary w-full" whileTap={{ scale: 0.97 }}>
-                {loading ? 'Menghantar...' : 'Hantar kod'}
+                {loading ? t('login.sending') : t('login.sendCode')}
               </motion.button>
             </motion.div>
           ) : (
@@ -228,7 +228,7 @@ export default function LoginPage() {
                 placeholder={t('login.otpPlaceholder')} autoFocus />
               <motion.button onClick={verifyOtp} disabled={loading || otp.length !== 6}
                 className="btn-primary w-full disabled:opacity-50 mb-3" whileTap={{ scale: 0.97 }}>
-                {loading ? 'Menyemak...' : t('login.submit')}
+                {loading ? t('login.checking') : t('login.submit')}
               </motion.button>
               <button onClick={() => { setStage('phone'); setOtp(''); }}
                 className="w-full text-sm text-ink-secondary underline">
@@ -241,7 +241,7 @@ export default function LoginPage() {
         <div className="mt-auto pt-8">
           <Illustrations />
           <p className="mt-4 text-center text-xs text-ink-secondary">
-            Untuk bisnes F&amp;B kecil di Malaysia
+            {t('app.footer')}
           </p>
         </div>
       </motion.div>
@@ -290,7 +290,7 @@ export default function LoginPage() {
                 </div>
                 <motion.button onClick={sendOtp} disabled={loading}
                   className="btn-primary w-full" whileTap={{ scale: 0.97 }}>
-                  {loading ? 'Menghantar...' : 'Hantar kod'}
+                  {loading ? t('login.sending') : t('login.sendCode')}
                 </motion.button>
               </motion.div>
             ) : (
@@ -311,7 +311,7 @@ export default function LoginPage() {
                   placeholder={t('login.otpPlaceholder')} autoFocus />
                 <motion.button onClick={verifyOtp} disabled={loading || otp.length !== 6}
                   className="btn-primary w-full disabled:opacity-50 mb-3" whileTap={{ scale: 0.97 }}>
-                  {loading ? 'Menyemak...' : t('login.submit')}
+                  {loading ? t('login.checking') : t('login.submit')}
                 </motion.button>
                 <button onClick={() => { setStage('phone'); setOtp(''); }}
                   className="w-full text-sm text-ink-secondary underline">
@@ -324,7 +324,7 @@ export default function LoginPage() {
           <div className="mt-8">
             <Illustrations />
             <p className="mt-4 text-center text-xs text-ink-secondary">
-              Untuk bisnes F&amp;B kecil di Malaysia
+              {t('app.footer')}
             </p>
           </div>
         </div>
