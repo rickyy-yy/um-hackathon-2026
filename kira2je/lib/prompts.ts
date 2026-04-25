@@ -100,6 +100,59 @@ Return as JSON:
 Use Malaysian F&B context: chicken → ayam goreng, nasi lemak, nasi ayam, etc. Coconut milk → nasi lemak, laksa, etc.`;
 }
 
+export function reportMonthViewPrompt(
+  salesData: unknown,
+  expenseData: unknown,
+  mappings: unknown,
+  locale: Locale
+): string {
+  const lang = locale === 'bm' ? 'Bahasa Malaysia (BM)' : 'English';
+  return `You are Kira2 je, an AI financial analyst for Malaysian F&B businesses. Language: ${lang}
+
+Sales data (current month): ${JSON.stringify(salesData).slice(0, 3000)}
+Expense data (confirmed invoices): ${JSON.stringify(expenseData).slice(0, 2000)}
+Ingredient-to-menu mappings: ${JSON.stringify(mappings).slice(0, 1000)}
+
+Return ONLY this JSON — no explanation:
+{
+  "summary": { "totalRevenue": number, "totalExpenses": number, "estimatedProfit": number, "marginPct": number },
+  "topPerformers": [{ "item": string, "revenue": number, "estimatedCost": number, "profit": number, "marginPct": number }],
+  "costBreakdown": [{ "category": string, "amount": number, "pctOfTotal": number }],
+  "atRiskItems": [{ "item": string, "reason": string }],
+  "recommendations": [{ "rank": number, "title": string, "description": string, "estimatedMonthlyImpactRm": number }]
+}
+
+Rules: exact RM amounts, actual item names, all text in ${lang}.`;
+}
+
+export function reportTrendsViewPrompt(
+  currentMonthSummary: unknown,
+  historicalData: unknown,
+  locale: Locale
+): string {
+  const lang = locale === 'bm' ? 'Bahasa Malaysia (BM)' : 'English';
+  const hist = historicalData ? JSON.stringify(historicalData).slice(0, 3000) : 'null';
+  return `You are Kira2 je, an AI financial analyst for Malaysian F&B businesses. Language: ${lang}
+
+Current month summary: ${JSON.stringify(currentMonthSummary)}
+Historical data (previous months, newest first): ${hist}
+
+Return ONLY this JSON — no explanation:
+{
+  "summary": { "avgMarginPct": number, "marginTrendPct": number, "revenueTrendPct": number, "monthsAnalysed": number },
+  "marginOverTime": [{ "month": string, "marginPct": number, "revenue": number, "expenses": number }],
+  "supplierPriceChanges": [{ "supplier": string, "item": string, "changePct": number, "period": string }],
+  "cannibalization": { "detected": boolean, "alerts": [{ "newItem": string, "affectedItem": string, "salesDropPct": number, "netCategoryGrowthPct": number, "detail": string }] },
+  "monthOverMonth": [{ "metric": string, "current": number, "previous": number, "changePct": number }]
+}
+
+Rules:
+- If historical data is null or < 2 months, set monthsAnalysed = 1 and return empty arrays for time-series fields
+- Cannibalization only if 3+ months show correlated sales movement
+- All text in ${lang}`;
+}
+
+/** @deprecated use reportMonthViewPrompt + reportTrendsViewPrompt in parallel */
 export function reportPrompt(
   salesData: unknown,
   expenseData: unknown,
@@ -107,43 +160,9 @@ export function reportPrompt(
   historicalData: unknown,
   locale: Locale
 ): string {
-  const lang = locale === 'bm' ? 'Bahasa Malaysia (BM)' : 'English';
-
-  return `You are Kira2 je, an AI financial analyst for Malaysian F&B businesses.
-
-Language: ${lang}
-
-Generate BOTH a single-month snapshot and a cumulative trends view.
-
-Sales data (current month): ${JSON.stringify(salesData).slice(0, 3000)}
-Expense data (current month, from confirmed invoices): ${JSON.stringify(expenseData).slice(0, 2000)}
-Ingredient-to-menu mappings: ${JSON.stringify(mappings).slice(0, 1000)}
-Historical data (previous months): ${historicalData ? JSON.stringify(historicalData).slice(0, 2000) : 'null'}
-
-Return as JSON:
-{
-  "monthView": {
-    "summary": { "totalRevenue": number, "totalExpenses": number, "estimatedProfit": number, "marginPct": number },
-    "topPerformers": [{ "item": string, "revenue": number, "estimatedCost": number, "profit": number, "marginPct": number }],
-    "costBreakdown": [{ "category": string, "amount": number, "pctOfTotal": number }],
-    "atRiskItems": [{ "item": string, "reason": string }],
-    "recommendations": [{ "rank": number, "title": string, "description": string, "estimatedMonthlyImpactRm": number }]
-  },
-  "trendsView": {
-    "summary": { "avgMarginPct": number, "marginTrendPct": number, "revenueTrendPct": number, "monthsAnalysed": number },
-    "marginOverTime": [{ "month": string, "marginPct": number, "revenue": number, "expenses": number }],
-    "supplierPriceChanges": [{ "supplier": string, "item": string, "changePct": number, "period": string }],
-    "cannibalization": { "detected": boolean, "alerts": [{ "newItem": string, "affectedItem": string, "salesDropPct": number, "netCategoryGrowthPct": number, "detail": string }] },
-    "monthOverMonth": [{ "metric": string, "current": number, "previous": number, "changePct": number }]
-  }
-}
-
-Rules:
-- Use actual item names and exact RM amounts
-- If historical data is null or < 2 months, return trends_view.summary.monthsAnalysed = 1 and empty arrays for time-series fields
-- Cannibalization only if 3+ months of data showing correlated sales movement
-- All text in ${lang}
-- Use RM for all monetary values`;
+  return reportMonthViewPrompt(salesData, expenseData, mappings, locale) +
+    '\n\n---\n\n' +
+    reportTrendsViewPrompt({}, historicalData, locale);
 }
 
 export function posColumnMappingPrompt(headers: string[], sampleRows: Record<string, unknown>[]): string {

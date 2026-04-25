@@ -5,26 +5,16 @@ import { llm } from '@/lib/llm';
 import { getLocale } from '@/lib/i18n/server';
 import type { InvoiceLineItem } from '@/lib/schemas';
 
+export const maxDuration = 120;
+
 type LineItem = InvoiceLineItem;
 
-function parseLineItems(raw: unknown): LineItem[] {
+function parseJson<T>(raw: unknown, fallback: T): T {
   try {
-    if (typeof raw === 'string') return JSON.parse(raw);
-    if (Array.isArray(raw)) return raw as LineItem[];
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function parsePosData(raw: unknown): unknown[] {
-  try {
-    if (typeof raw === 'string') return JSON.parse(raw);
-    if (Array.isArray(raw)) return raw;
-    return [];
-  } catch {
-    return [];
-  }
+    if (typeof raw === 'string') return JSON.parse(raw) as T;
+    if (raw !== null && typeof raw === 'object') return raw as T;
+    return fallback;
+  } catch { return fallback; }
 }
 
 export async function POST(req: Request) {
@@ -37,99 +27,93 @@ export async function POST(req: Request) {
 
     const locale = await getLocale();
 
-    // 1. Get confirmed invoices
+    // 1. Confirmed invoices for this month
     const invoiceRows = await prisma.invoice.findMany({
       where: { userId: session.userId, month, status: 'confirmed' },
     });
-    const confirmedInvoices = invoiceRows.map((row) => ({
-      id: row.id,
-      supplierName: row.supplierName,
-      invoiceDate: row.invoiceDate ? row.invoiceDate.toISOString().slice(0, 10) : null,
-      total: row.total,
-      lineItems: parseLineItems(row.lineItems),
-    }));
+    const expenseData = {
+      invoices: invoiceRows.map((row) => ({
+        supplierName: row.supplierName,
+        invoiceDate: row.invoiceDate ? row.invoiceDate.toISOString().slice(0, 10) : null,
+        total: row.total,
+        lineItems: parseJson<LineItem[]>(row.lineItems, []),
+      })),
+    };
 
-    // 2. Get POS upload
+    // 2. POS upload for this month
     const posUpload = await prisma.posUpload.findUnique({
       where: { userId_month: { userId: session.userId, month } },
     });
-    const salesData = posUpload ? parsePosData(posUpload.parsedData) : [];
+    const salesData = posUpload ? parseJson<unknown[]>(posUpload.parsedData, []) : [];
 
-    // 3. Get historical data — prefer saved Report records, fall back to PosUpload summaries
-    const pastMonths = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(month + '-01');
-      d.setMonth(d.getMonth() - (i + 1));
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    });
-
-    const historicalReports = await prisma.report.findMany({
-      where: { userId: session.userId, month: { in: pastMonths } },
-      orderBy: { month: 'desc' },
-    });
-    const reportedMonths = new Set(historicalReports.map((r) => r.month));
-
-    // For months with no Report, build a lightweight summary from PosUpload
-    const unreportedMonths = pastMonths.filter((m) => !reportedMonths.has(m));
-    const pastPosUploads = unreportedMonths.length > 0
-      ? await prisma.posUpload.findMany({
-          where: { userId: session.userId, month: { in: unreportedMonths } },
-        })
-      : [];
-
-    const historicalData = [
-      ...historicalReports.map((r) => {
-        const mv = typeof r.monthView === 'string' ? JSON.parse(r.monthView) : r.monthView;
-        return { month: r.month, source: 'report', ...mv };
-      }),
-      ...pastPosUploads.map((p) => {
-        const rows = parsePosData(p.parsedData) as { itemName?: string; quantity?: number; unitPrice?: number }[];
-        const totalRevenue = rows.reduce((s, r) => s + (r.quantity ?? 0) * (r.unitPrice ?? 0), 0);
-        return {
-          month: p.month,
-          source: 'pos-only',
-          summary: { totalRevenue, totalExpenses: null, estimatedProfit: null, marginPct: null },
-          topItems: rows
-            .map((r) => ({ item: r.itemName, revenue: (r.quantity ?? 0) * (r.unitPrice ?? 0) }))
-            .sort((a, b) => b.revenue - a.revenue)
-            .slice(0, 10),
-        };
-      }),
-    ].sort((a, b) => b.month.localeCompare(a.month)).slice(0, 6);
-
-    // 4. Get ingredient mappings
+    // 3. Ingredient mappings
     const mappingRows = await prisma.ingredientMapping.findMany({
       where: { userId: session.userId },
     });
     const mappings = mappingRows.map((m) => ({
       ingredient: m.ingredient,
       supplier: m.supplier,
-      menuItems: Array.isArray(m.menuItems) ? m.menuItems : (typeof m.menuItems === 'string' ? JSON.parse(m.menuItems) : []),
+      menuItems: parseJson<string[]>(m.menuItems, []),
     }));
 
-    // 5. Call LLM
-    const result = await llm({
-      task: 'report',
-      salesData,
-      expenseData: { invoices: confirmedInvoices },
-      mappings,
-      historicalData,
-      locale,
+    // 4. Historical data — slim format (just revenue + margin per month)
+    //    Prefer saved Report records; fall back to PosUpload revenue summaries.
+    const pastMonths = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(month + '-01');
+      d.setMonth(d.getMonth() - (i + 1));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
 
-    // 6. Upsert report (stored as JSON strings in DB)
-    const monthViewStr = JSON.stringify(result.monthView);
-    const trendsViewStr = JSON.stringify(result.trendsView);
+    const [pastReports, pastPosUploads] = await Promise.all([
+      prisma.report.findMany({
+        where: { userId: session.userId, month: { in: pastMonths } },
+        orderBy: { month: 'desc' },
+      }),
+      prisma.posUpload.findMany({
+        where: { userId: session.userId, month: { in: pastMonths } },
+        orderBy: { month: 'desc' },
+      }),
+    ]);
+
+    const reportedMonths = new Set(pastReports.map((r) => r.month));
+
+    const historicalData = [
+      ...pastReports.map((r) => {
+        const mv = parseJson<{ summary?: { totalRevenue?: number; totalExpenses?: number; marginPct?: number } }>(r.monthView, {});
+        return {
+          month: r.month,
+          totalRevenue: mv.summary?.totalRevenue ?? null,
+          totalExpenses: mv.summary?.totalExpenses ?? null,
+          marginPct: mv.summary?.marginPct ?? null,
+        };
+      }),
+      ...pastPosUploads
+        .filter((p) => !reportedMonths.has(p.month))
+        .map((p) => {
+          const rows = parseJson<{ quantity?: number; unitPrice?: number }[]>(p.parsedData, []);
+          const totalRevenue = rows.reduce((s, r) => s + (r.quantity ?? 0) * (r.unitPrice ?? 0), 0);
+          return { month: p.month, totalRevenue, totalExpenses: null, marginPct: null };
+        }),
+    ].sort((a, b) => b.month.localeCompare(a.month));
+
+    // 5. Run monthView and trendsView in parallel
+    const [monthView, trendsView] = await Promise.all([
+      llm({ task: 'report-month', salesData, expenseData, mappings, locale }),
+      llm({ task: 'report-trends', currentMonthSummary: { month, salesData: salesData.length }, historicalData, locale }),
+    ]);
+
+    // 6. Upsert report
     await prisma.report.upsert({
       where: { userId_month: { userId: session.userId, month } },
       create: {
         userId: session.userId,
         month,
-        monthView: monthViewStr,
-        trendsView: trendsViewStr,
+        monthView: JSON.stringify(monthView),
+        trendsView: JSON.stringify(trendsView),
       },
       update: {
-        monthView: monthViewStr,
-        trendsView: trendsViewStr,
+        monthView: JSON.stringify(monthView),
+        trendsView: JSON.stringify(trendsView),
         generatedAt: new Date(),
       },
     });
