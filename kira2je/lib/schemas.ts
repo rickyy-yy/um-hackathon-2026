@@ -59,6 +59,7 @@ export const TopPerformer = z.object({
   estimatedCost: z.number(),
   profit: z.number(),
   marginPct: z.number(),
+  profitContributionPct: z.number().optional(),
 });
 
 export const CostBreakdown = z.object({
@@ -77,6 +78,7 @@ export const Recommendation = z.object({
   title: z.string(),
   description: z.string(),
   estimatedMonthlyImpactRm: z.number(),
+  riskLevel: z.enum(['low', 'medium', 'high']).optional(),
 });
 
 export const MonthSummary = z.object({
@@ -84,6 +86,10 @@ export const MonthSummary = z.object({
   totalExpenses: z.number(),
   estimatedProfit: z.number(),
   marginPct: z.number(),
+  momRevenuePct: z.number().nullable().optional(),
+  momExpensesPct: z.number().nullable().optional(),
+  momProfitPct: z.number().nullable().optional(),
+  momMarginPp: z.number().nullable().optional(),
 });
 
 export const MonthView = z.object({
@@ -92,6 +98,8 @@ export const MonthView = z.object({
   costBreakdown: z.array(CostBreakdown),
   atRiskItems: z.array(AtRiskItem),
   recommendations: z.array(Recommendation),
+  narrative: z.string().optional(),
+  insightBanner: z.string().optional(),
 });
 export type MonthView = z.infer<typeof MonthView>;
 
