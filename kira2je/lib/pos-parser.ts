@@ -13,6 +13,7 @@ export type PosSystem =
   | 'loyverse-summary'
   | 'storehub-best-sellers'
   | 'storehub-daily'
+  | 'custom-itemized'
   | 'unknown';
 
 export type ParseResult = {
@@ -49,6 +50,9 @@ function detectSystem(headers: string[]): PosSystem {
   if (hasAll(headers, ['total sold', 'cost / item']))             return 'storehub-best-sellers';
   if (hasAll(headers, ['net sales / transaction', 'rounding']))   return 'storehub-daily';
   if (hasAll(headers, ['total tendered', 'rounding', 'net sales'])) return 'storehub-daily';
+  // Custom item-level export (snake_case columns with _rm suffix)
+  if (hasAll(headers, ['item_name', 'unit_price_rm', 'quantity'])) return 'custom-itemized';
+  if (hasAll(headers, ['item_name', 'unit_price', 'quantity']))    return 'custom-itemized';
   return 'unknown';
 }
 
@@ -61,6 +65,7 @@ export const SYSTEM_LABELS: Record<PosSystem, string> = {
   'loyverse-summary':      'Loyverse — Sales Summary',
   'storehub-best-sellers': 'StoreHub — Best Selling Products',
   'storehub-daily':        'StoreHub — Daily Sales',
+  'custom-itemized':       'Custom — Item-level Export',
   'unknown':               'Unknown format',
 };
 
@@ -170,6 +175,39 @@ function mapStoreHubBestSellers(raw: Record<string, unknown>[]): { rows: SalesRo
   };
 }
 
+function excelDateToIso(v: unknown): string | undefined {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === 'number' && v > 0) {
+    // Excel serial: days since 1899-12-30 (accounts for the 1900 leap-year bug)
+    const ms = (v - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  if (typeof v === 'string' && v.length >= 8) return v.slice(0, 10);
+  return undefined;
+}
+
+function mapCustomItemized(raw: Record<string, unknown>[]): { rows: SalesRow[]; warnings: string[] } {
+  const rows: SalesRow[] = [];
+  for (const r of raw) {
+    const itemName = str(r['item_name']);
+    if (!itemName) continue;
+    if (r['is_refunded'] === true || str(r['is_refunded']).toLowerCase() === 'true') continue;
+    const unitPrice =
+      num(r['unit_price_rm']) ||
+      num(r['unit_price']);
+    rows.push({
+      itemName,
+      quantity: num(r['quantity']),
+      unitPrice,
+      date: excelDateToIso(r['date']) ?? excelDateToIso(r['receipt_datetime']),
+      category: str(r['category']) || str(r['item_type']) || undefined,
+      channel: mapChannel(str(r['dine_in_takeaway']) || str(r['order_type']) || str(r['channel'])),
+    });
+  }
+  return { rows, warnings: [] };
+}
+
 // ─── Non-item-level notices ───────────────────────────────────────────────────
 
 const NOT_ITEM_LEVEL: Partial<Record<PosSystem, string>> = {
@@ -262,10 +300,11 @@ export async function parsePosFile(base64: string, fileName: string): Promise<Pa
 
   // Map to SalesRow
   let mapped: { rows: SalesRow[]; warnings: string[] };
-  if (system === 'square-items')          mapped = mapSquareItems(rawRows);
-  else if (system === 'square-summary')   mapped = mapSquareSummary(rawRows);
-  else if (system === 'loyverse-items')   mapped = mapLoyverseItems(rawRows);
-  else                                    mapped = mapStoreHubBestSellers(rawRows);
+  if (system === 'square-items')           mapped = mapSquareItems(rawRows);
+  else if (system === 'square-summary')    mapped = mapSquareSummary(rawRows);
+  else if (system === 'loyverse-items')    mapped = mapLoyverseItems(rawRows);
+  else if (system === 'custom-itemized')   mapped = mapCustomItemized(rawRows);
+  else                                     mapped = mapStoreHubBestSellers(rawRows);
 
   // Preview: pick the most relevant columns (up to 5)
   const previewColPriority: Partial<Record<PosSystem, string[]>> = {
@@ -273,6 +312,7 @@ export async function parsePosFile(base64: string, fileName: string): Promise<Pa
     'square-summary':        ['Item Name', 'Category', 'Items Sold', 'Net Sales'],
     'loyverse-items':        ['Date', 'Item', 'Category', 'Quantity', 'Price'],
     'storehub-best-sellers': ['Product Name', 'Category', 'Total Sold', 'Total Sales (RM)', 'Sale / Item (RM)', 'GP (%)'],
+    'custom-itemized':       ['date', 'item_name', 'category', 'quantity', 'unit_price_rm', 'dine_in_takeaway'],
   };
   const wantedCols = previewColPriority[system] ?? headers.slice(0, 6);
   const previewHeaders = wantedCols.filter((c) => headers.includes(c));
