@@ -53,10 +53,11 @@ export async function GET() {
   });
   const menuItems = posUpload ? extractMenuItems(posUpload.parsedData) : [];
 
-  // 4. Existing saved mappings (for LLM context + confirmed state)
-  const saved = await prisma.ingredientMapping.findMany({
-    where: { userId: session.userId },
-  });
+  // 4. Existing saved mappings + overrides
+  const [saved, savedOverrides] = await Promise.all([
+    prisma.ingredientMapping.findMany({ where: { userId: session.userId } }),
+    prisma.menuItemOverride.findMany({ where: { userId: session.userId } }),
+  ]);
   const savedMappingsForLlm = saved.map((m) => ({
     ingredient: m.ingredient,
     supplier: m.supplier ?? undefined,
@@ -64,22 +65,27 @@ export async function GET() {
   }));
   const confirmedIngredients = new Set(saved.map((m) => m.ingredient));
 
+  const overrides = savedOverrides.map((o) => ({
+    itemName: o.itemName,
+    type: o.type as 'service' | 'manual',
+    manualCost: o.manualCost ?? undefined,
+  }));
+  const overriddenItems = new Set(savedOverrides.map((o) => o.itemName));
+
   const hasInvoices = invoiceItems.length > 0;
   const hasPos = menuItems.length > 0;
 
   if (!hasInvoices) {
     return NextResponse.json({
       ok: true,
-      proposals: savedMappingsForLlm.map((m) => ({
-        ...m,
-        confidence: 'high' as const,
-      })),
+      proposals: savedMappingsForLlm.map((m) => ({ ...m, confidence: 'high' as const })),
       confirmedIngredients: Array.from(confirmedIngredients),
       unmappedIngredients: [],
       unmappedMenuItems: [],
       menuItems,
       hasInvoices,
       hasPos,
+      overrides,
     });
   }
 
@@ -99,15 +105,21 @@ export async function GET() {
     llmError = 'AI mapping failed — showing previously confirmed mappings only.';
   }
 
+  // Filter unmapped menu items — exclude any that the user has already overridden
+  const unmappedMenuItems = (result?.unmappedMenuItems ?? []).filter(
+    (item) => !overriddenItems.has(item)
+  );
+
   return NextResponse.json({
     ok: true,
     proposals: result?.mappings ?? savedMappingsForLlm.map((m) => ({ ...m, confidence: 'low' as const })),
     confirmedIngredients: Array.from(confirmedIngredients),
     unmappedIngredients: result?.unmappedIngredients ?? [],
-    unmappedMenuItems: result?.unmappedMenuItems ?? [],
+    unmappedMenuItems,
     menuItems,
     hasInvoices,
     hasPos,
+    overrides,
     llmError,
   });
 }
@@ -118,13 +130,13 @@ export async function POST(req: Request) {
 
   const body = (await req.json()) as {
     mappings: { ingredient: string; supplier?: string; menuItems: string[] }[];
+    overrides?: { itemName: string; type: 'service' | 'manual'; manualCost?: number }[];
   };
 
   if (!Array.isArray(body.mappings)) {
     return NextResponse.json({ ok: false, error: 'mappings array required' }, { status: 400 });
   }
 
-  // Replace all saved mappings for this user with the newly confirmed set
   await prisma.ingredientMapping.deleteMany({ where: { userId: session.userId } });
 
   if (body.mappings.length > 0) {
@@ -136,6 +148,17 @@ export async function POST(req: Request) {
         menuItems: JSON.stringify(m.menuItems),
       })),
     });
+  }
+
+  // Upsert overrides
+  if (body.overrides && body.overrides.length > 0) {
+    for (const o of body.overrides) {
+      await prisma.menuItemOverride.upsert({
+        where: { userId_itemName: { userId: session.userId, itemName: o.itemName } },
+        create: { userId: session.userId, itemName: o.itemName, type: o.type, manualCost: o.manualCost ?? null },
+        update: { type: o.type, manualCost: o.manualCost ?? null },
+      });
+    }
   }
 
   return NextResponse.json({ ok: true, saved: body.mappings.length });

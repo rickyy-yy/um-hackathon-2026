@@ -12,6 +12,8 @@ import {
   Check,
   Loader2,
   RefreshCw,
+  Tag,
+  DollarSign,
 } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import type { MappingProposal } from '@/lib/schemas';
@@ -189,6 +191,8 @@ function MappingRow({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+type ItemOverride = { type: 'service' | 'manual'; manualCost?: number };
+
 type ApiData = {
   proposals: MappingProposal[];
   confirmedIngredients: string[];
@@ -197,6 +201,7 @@ type ApiData = {
   menuItems: string[];
   hasInvoices: boolean;
   hasPos: boolean;
+  overrides?: { itemName: string; type: 'service' | 'manual'; manualCost?: number }[];
   llmError?: string | null;
 };
 
@@ -210,6 +215,7 @@ export default function MappingPage() {
 
   const [mappings, setMappings] = useState<MappingProposal[]>([]);
   const [confirmed, setConfirmed] = useState<boolean[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, ItemOverride>>({});
 
   async function fetchMappings() {
     setLoading(true);
@@ -228,6 +234,9 @@ export default function MappingPage() {
       setLlmError(d.llmError ?? null);
       const confirmedSet = new Set(d.confirmedIngredients);
       setConfirmed(d.proposals.map((p) => confirmedSet.has(p.ingredient)));
+      const overrideMap: Record<string, ItemOverride> = {};
+      for (const o of d.overrides ?? []) overrideMap[o.itemName] = { type: o.type, manualCost: o.manualCost };
+      setOverrides(overrideMap);
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -252,6 +261,11 @@ export default function MappingPage() {
             ingredient: m.ingredient,
             supplier: m.supplier,
             menuItems: m.menuItems,
+          })),
+          overrides: Object.entries(overrides).map(([itemName, o]) => ({
+            itemName,
+            type: o.type,
+            manualCost: o.manualCost,
           })),
         }),
       });
@@ -448,17 +462,75 @@ export default function MappingPage() {
                 </div>
               )}
               {(data?.unmappedMenuItems.length ?? 0) > 0 && (
-                <div className="card">
-                  <p className="text-xs font-semibold text-ink-secondary mb-2">
+                <div className="card space-y-3">
+                  <p className="text-xs font-semibold text-ink-secondary">
                     Menu items without ingredient data
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {data!.unmappedMenuItems.map((item) => (
-                      <span key={item} className="inline-flex items-center text-xs font-medium bg-danger/10 text-danger border border-danger/20 rounded-full px-3 py-1">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
+                  {data!.unmappedMenuItems.map((item) => {
+                    const ov = overrides[item];
+                    return (
+                      <div key={item} className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-ink-primary">{item}</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setOverrides((o) => {
+                                const next = { ...o };
+                                if (next[item]?.type === 'service') delete next[item];
+                                else next[item] = { type: 'service' };
+                                return next;
+                              })}
+                              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                                ov?.type === 'service'
+                                  ? 'bg-accent-primary text-white border-accent-primary'
+                                  : 'bg-paper-50 text-ink-secondary border-paper-200 hover:border-accent-primary/50'
+                              }`}
+                            >
+                              <Tag size={11} /> Service / fee item
+                            </button>
+                            <button
+                              onClick={() => setOverrides((o) => {
+                                const next = { ...o };
+                                if (next[item]?.type === 'manual') delete next[item];
+                                else next[item] = { type: 'manual', manualCost: undefined };
+                                return next;
+                              })}
+                              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                                ov?.type === 'manual'
+                                  ? 'bg-accent-primary text-white border-accent-primary'
+                                  : 'bg-paper-50 text-ink-secondary border-paper-200 hover:border-accent-primary/50'
+                              }`}
+                            >
+                              <DollarSign size={11} /> Enter cost
+                            </button>
+                          </div>
+                        </div>
+                        {ov?.type === 'service' && (
+                          <p className="text-xs text-ink-secondary pl-1">Counted as &quot;Other revenue&quot; in report — no COGS.</p>
+                        )}
+                        {ov?.type === 'manual' && (
+                          <div className="flex items-center gap-2 pl-1">
+                            <span className="text-xs text-ink-secondary">Cost per unit:</span>
+                            <div className="flex items-center gap-1 bg-paper-100 border border-paper-200 rounded-lg px-2 py-1">
+                              <span className="text-xs text-ink-secondary">RM</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={ov.manualCost ?? ''}
+                                onChange={(e) => setOverrides((o) => ({
+                                  ...o,
+                                  [item]: { type: 'manual', manualCost: parseFloat(e.target.value) || undefined },
+                                }))}
+                                className="w-20 text-xs bg-transparent outline-none text-ink-primary font-medium"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

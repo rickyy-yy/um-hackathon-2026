@@ -27,7 +27,7 @@ type LlmTask =
   | { task: 'invoice-ocr'; imageBase64: string; mimeType: string; locale?: Locale }
   | { task: 'ingredient-mapping'; invoiceItems: unknown[]; menuItems: string[]; savedMappings: unknown[]; locale?: Locale }
   | { task: 'report'; salesData: unknown; expenseData: unknown; mappings: unknown; historicalData: unknown; locale?: Locale }
-  | { task: 'report-month'; salesData: unknown; expenseData: unknown; mappings: unknown; locale?: Locale }
+  | { task: 'report-month'; salesData: unknown; expenseData: unknown; mappings: unknown; menuItemOverrides?: unknown; locale?: Locale }
   | { task: 'report-trends'; currentMonthSummary: unknown; historicalData: unknown; locale?: Locale }
   | { task: 'whatif'; monthView: unknown; trendsView: unknown; question: string; locale?: Locale }
   | { task: 'pos-column-mapping'; headers: string[]; sampleRows: Record<string, unknown>[] };
@@ -271,7 +271,7 @@ async function callReal<T extends LlmTask>(args: T, locale: Locale): Promise<Llm
       const raw = await chatJson<unknown>(
         [
           { role: 'system', content: sys },
-          { role: 'user', content: reportMonthViewPrompt(args.salesData, args.expenseData, args.mappings, locale) },
+          { role: 'user', content: reportMonthViewPrompt(args.salesData, args.expenseData, args.mappings, locale, args.menuItemOverrides) },
         ],
         'report-month'
       );

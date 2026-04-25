@@ -22,6 +22,7 @@ model User {
   posUploads   PosUpload[]
   mappings     IngredientMapping[]
   whatIf       WhatIfTurn[]
+  overrides    MenuItemOverride[]
 }
 
 model Invoice {
@@ -81,6 +82,18 @@ model Report {
 
   @@unique([userId, month])
   @@index([userId, generatedAt])
+}
+
+model MenuItemOverride {
+  id         String   @id @default(cuid())
+  userId     String
+  itemName   String
+  type       String   // "service" | "manual"
+  manualCost Float?   // RM per unit, only for type = "manual"
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, itemName])
 }
 
 model WhatIfTurn {

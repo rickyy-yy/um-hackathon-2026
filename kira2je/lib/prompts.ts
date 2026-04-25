@@ -104,14 +104,20 @@ export function reportMonthViewPrompt(
   salesData: unknown,
   expenseData: unknown,
   mappings: unknown,
-  locale: Locale
+  locale: Locale,
+  menuItemOverrides?: unknown
 ): string {
   const lang = locale === 'bm' ? 'Bahasa Malaysia (BM)' : 'English';
+  const overrideNote = menuItemOverrides && JSON.stringify(menuItemOverrides) !== '[]'
+    ? `\nMenu item overrides: ${JSON.stringify(menuItemOverrides).slice(0, 500)}
+- type "service": fee/service item with no COGS — count revenue separately as "Other revenue", marginPct = 100
+- type "manual": use manualCost (RM per unit) as COGS instead of invoice data\n`
+    : '';
   return `You are Kira2 je, an AI financial analyst for Malaysian F&B businesses. Language: ${lang}
 
 Sales data (current month): ${JSON.stringify(salesData).slice(0, 3000)}
 Expense data (confirmed invoices): ${JSON.stringify(expenseData).slice(0, 2000)}
-Ingredient-to-menu mappings: ${JSON.stringify(mappings).slice(0, 1000)}
+Ingredient-to-menu mappings: ${JSON.stringify(mappings).slice(0, 1000)}${overrideNote}
 
 Return ONLY this JSON — no explanation:
 {

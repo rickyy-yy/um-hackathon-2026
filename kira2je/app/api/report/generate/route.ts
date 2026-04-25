@@ -46,14 +46,20 @@ export async function POST(req: Request) {
     });
     const salesData = posUpload ? parseJson<unknown[]>(posUpload.parsedData, []) : [];
 
-    // 3. Ingredient mappings
-    const mappingRows = await prisma.ingredientMapping.findMany({
-      where: { userId: session.userId },
-    });
+    // 3. Ingredient mappings + menu item overrides
+    const [mappingRows, overrideRows] = await Promise.all([
+      prisma.ingredientMapping.findMany({ where: { userId: session.userId } }),
+      prisma.menuItemOverride.findMany({ where: { userId: session.userId } }),
+    ]);
     const mappings = mappingRows.map((m) => ({
       ingredient: m.ingredient,
       supplier: m.supplier,
       menuItems: parseJson<string[]>(m.menuItems, []),
+    }));
+    const menuItemOverrides = overrideRows.map((o) => ({
+      itemName: o.itemName,
+      type: o.type, // "service" | "manual"
+      manualCost: o.manualCost ?? null,
     }));
 
     // 4. Historical data — slim format (just revenue + margin per month)
@@ -98,7 +104,7 @@ export async function POST(req: Request) {
 
     // 5. Run monthView and trendsView in parallel
     const [monthView, trendsView] = await Promise.all([
-      llm({ task: 'report-month', salesData, expenseData, mappings, locale }),
+      llm({ task: 'report-month', salesData, expenseData, mappings, menuItemOverrides, locale }),
       llm({ task: 'report-trends', currentMonthSummary: { month, salesData: salesData.length }, historicalData, locale }),
     ]);
 
