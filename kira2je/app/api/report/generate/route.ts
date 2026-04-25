@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   if (!month) return NextResponse.json({ ok: false, error: 'month required' }, { status: 400 });
 
   const [invoiceCount, posUpload, mappingCount] = await Promise.all([
-    prisma.invoice.count({ where: { userId: session.userId, month, status: 'confirmed' } }),
+    prisma.invoice.count({ where: { userId: session.userId, month } }),
     prisma.posUpload.findUnique({ where: { userId_month: { userId: session.userId, month } }, select: { rowCount: true, fileName: true } }),
     prisma.ingredientMapping.count({ where: { userId: session.userId } }),
   ]);
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
     // 1. Confirmed invoices for this month
     const invoiceRows = await prisma.invoice.findMany({
-      where: { userId: session.userId, month, status: 'confirmed' },
+      where: { userId: session.userId, month },
     });
     const expenseData = {
       invoices: invoiceRows.map((row) => ({
