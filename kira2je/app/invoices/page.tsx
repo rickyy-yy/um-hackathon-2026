@@ -97,12 +97,14 @@ function UploadSheet({
   onRefresh: () => void;
 }) {
   const [processing, setProcessing] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     setProcessing(true);
+    setUploadError(null);
 
     try {
       const images: { name: string; base64: string; mimeType: string }[] = [];
@@ -112,7 +114,6 @@ function UploadSheet({
           const reader = new FileReader();
           reader.onload = () => {
             const result = reader.result as string;
-            // Strip data URL prefix if present
             const b64 = result.includes(',') ? result.split(',')[1] : result;
             resolve(b64);
           };
@@ -122,25 +123,24 @@ function UploadSheet({
         images.push({ name: file.name, base64, mimeType: file.type || 'image/jpeg' });
       }
 
-      // Use the 1.8s delay as loading state while calling API
-      const [res] = await Promise.all([
-        fetch('/api/upload/photo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ images }),
-        }),
-        new Promise((r) => setTimeout(r, 1800)),
-      ]);
+      const res = await fetch('/api/upload/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string; count?: number };
 
-      if (res.ok) {
+      if (res.ok && data.ok) {
         onRefresh();
+        onClose();
+      } else {
+        setUploadError(data.error ?? 'Could not read the invoice. Please try a clearer photo.');
+        setProcessing(false);
       }
     } catch (e) {
-      console.error('[upload]', e);
+      setUploadError('Network error. Please try again.');
+      setProcessing(false);
     }
-
-    setProcessing(false);
-    onClose();
   }
 
   return (

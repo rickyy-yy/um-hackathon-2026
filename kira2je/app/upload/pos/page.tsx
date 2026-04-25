@@ -5,42 +5,105 @@ import Link from 'next/link';
 import {
   Upload,
   CheckCircle,
-  AlertCircle,
   AlertTriangle,
   Info,
   Loader2,
   X,
   ChevronRight,
-  Sparkles,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { AppHeader } from '@/components/AppHeader';
-import type { PosSystem } from '@/lib/pos-parser';
+import type { PosColumnMapping } from '@/lib/schemas';
 
 const CURRENT_MONTH = '2026-04';
 const MONTH_LABEL = 'April 2026';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-type ParsePreview = {
-  system: PosSystem;
-  systemLabel: string;
-  usable: boolean;
-  warnings: string[];
-  isAggregated: boolean;
-  previewHeaders: string[];
-  previewRows: Record<string, unknown>[];
-  rowCount: number;
-  aiDetected?: boolean;
-  detectedMonths?: string[];
+const MONTH_NAMES: Record<string, string> = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
+  '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
+  '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
 };
+
+function formatMonth(ym: string): string {
+  const [year, month] = ym.split('-');
+  return `${MONTH_NAMES[month] ?? month} ${year}`;
+}
+
+// ─── Stage machine ────────────────────────────────────────────────────────────
 
 type Stage =
   | { kind: 'idle' }
-  | { kind: 'detecting'; fileName: string }
-  | { kind: 'preview'; fileName: string; base64: string; preview: ParsePreview }
+  | { kind: 'reading'; fileName: string }
+  | { kind: 'detecting'; fileName: string; base64: string }
+  | {
+      kind: 'confirming';
+      fileName: string;
+      base64: string;
+      headers: string[];
+      mapping: PosColumnMapping;
+      previewRows: Record<string, unknown>[];
+      totalRows: number;
+      detectedMonths: string[];
+      llmError: string | null;
+    }
   | { kind: 'importing' }
-  | { kind: 'done'; rowCount: number; systemLabel: string; savedMonths: string[] };
+  | { kind: 'done'; rowCount: number; savedMonths: string[] };
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
+
+const STEPS = ['Read file', 'Detect columns', 'Confirm', 'Import'] as const;
+
+function stageToStep(stage: Stage): number {
+  switch (stage.kind) {
+    case 'idle':      return 0;
+    case 'reading':   return 0;
+    case 'detecting': return 1;
+    case 'confirming': return 2;
+    case 'importing': return 3;
+    case 'done':      return 4;
+  }
+}
+
+function StepIndicator({ stage }: { stage: Stage }) {
+  const current = stageToStep(stage);
+  return (
+    <div className="flex items-center gap-0 text-xs overflow-x-auto">
+      {STEPS.map((label, idx) => {
+        const done = idx < current;
+        const active = idx === current;
+        return (
+          <div key={label} className="flex items-center">
+            <div className="flex items-center gap-1.5 px-1">
+              <span
+                className={[
+                  'w-2 h-2 rounded-full shrink-0',
+                  done   ? 'bg-accent-secondary'           : '',
+                  active ? 'bg-accent-primary animate-pulse' : '',
+                  !done && !active ? 'bg-paper-200 border border-paper-200' : '',
+                ].join(' ')}
+              />
+              <span
+                className={[
+                  'whitespace-nowrap',
+                  done   ? 'text-accent-secondary font-medium' : '',
+                  active ? 'text-accent-primary font-semibold' : '',
+                  !done && !active ? 'text-ink-secondary' : '',
+                ].join(' ')}
+              >
+                {label}
+              </span>
+            </div>
+            {idx < STEPS.length - 1 && (
+              <div className={`h-px w-6 shrink-0 mx-0.5 ${idx < current ? 'bg-accent-secondary' : 'bg-paper-200'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,48 +116,7 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-const SYSTEM_COLORS: Partial<Record<PosSystem, string>> = {
-  'storehub-best-sellers': 'bg-blue-50 text-blue-700 border-blue-200',
-  'storehub-items':        'bg-blue-50 text-blue-700 border-blue-200',
-  'storehub-daily':        'bg-blue-50 text-blue-700 border-blue-200',
-  'square-items':          'bg-violet-50 text-violet-700 border-violet-200',
-  'square-summary':        'bg-violet-50 text-violet-700 border-violet-200',
-  'square-transactions':   'bg-violet-50 text-violet-700 border-violet-200',
-  'loyverse-items':        'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'loyverse-receipts':     'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'loyverse-summary':      'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'custom-itemized':       'bg-amber-50 text-amber-700 border-amber-200',
-  'unknown':               'bg-paper-100 text-ink-secondary border-paper-200',
-};
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SystemBadge({
-  system,
-  label,
-  usable,
-  aiDetected,
-}: {
-  system: PosSystem;
-  label: string;
-  usable: boolean;
-  aiDetected?: boolean;
-}) {
-  const color = SYSTEM_COLORS[system] ?? 'bg-paper-100 text-ink-secondary border-paper-200';
-  return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${color}`}>
-      {aiDetected ? (
-        <Sparkles className="w-3.5 h-3.5" />
-      ) : usable ? (
-        <CheckCircle className="w-3.5 h-3.5" />
-      ) : (
-        <AlertCircle className="w-3.5 h-3.5" />
-      )}
-      {label}
-      {aiDetected && <span className="font-normal opacity-75">· AI detected</span>}
-    </div>
-  );
-}
 
 function WarningCard({ text, isError }: { text: string; isError?: boolean }) {
   return (
@@ -107,17 +129,6 @@ function WarningCard({ text, isError }: { text: string; isError?: boolean }) {
       <p>{text}</p>
     </div>
   );
-}
-
-const MONTH_NAMES: Record<string, string> = {
-  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
-  '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
-  '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
-};
-
-function formatMonth(ym: string): string {
-  const [year, month] = ym.split('-');
-  return `${MONTH_NAMES[month] ?? month} ${year}`;
 }
 
 function MonthsDetectedCard({ months }: { months: string[] }) {
@@ -134,22 +145,6 @@ function MonthsDetectedCard({ months }: { months: string[] }) {
         </p>
         <p className="text-xs mt-0.5 opacity-80">
           Each month will be imported separately so your historical reports stay accurate.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function StoreHubGuidanceCard() {
-  return (
-    <div className="flex gap-3 px-4 py-3 rounded-btn border border-blue-200 bg-blue-50 text-blue-800 text-sm leading-relaxed">
-      <Info className="w-4 h-4 shrink-0 mt-0.5" />
-      <div className="space-y-1">
-        <p className="font-medium">StoreHub export tip</p>
-        <p>
-          In BackOffice, go to <strong>Reports › Best Selling Products</strong> and set the
-          date range to <strong>{MONTH_LABEL}</strong> before exporting. The file does not
-          include dates per row, so the filter must match your target month.
         </p>
       </div>
     </div>
@@ -192,6 +187,110 @@ function PreviewTable({
   );
 }
 
+// ─── Column picker field definitions ─────────────────────────────────────────
+
+type MappingKey = keyof Omit<PosColumnMapping, 'isAggregated' | 'confidence'>;
+
+const MAPPING_FIELDS: { label: string; key: MappingKey }[] = [
+  { label: 'Item / Product Name', key: 'itemNameCol' },
+  { label: 'Quantity',            key: 'quantityCol' },
+  { label: 'Unit Price',          key: 'unitPriceCol' },
+  { label: 'Date',                key: 'dateCol' },
+  { label: 'Category',            key: 'categoryCol' },
+  { label: 'Channel / Order type', key: 'channelCol' },
+  { label: 'Refund flag',         key: 'isRefundedCol' },
+];
+
+function ColumnPicker({
+  headers,
+  mapping,
+  onChange,
+}: {
+  headers: string[];
+  mapping: PosColumnMapping;
+  onChange: (m: PosColumnMapping) => void;
+}) {
+  const options = ['(none)', ...headers];
+
+  function setCol(key: MappingKey, value: string) {
+    onChange({ ...mapping, [key]: value === '(none)' ? null : value });
+  }
+
+  return (
+    <div className="card space-y-3">
+      <p className="section-label">Column mapping</p>
+      <div className="space-y-2">
+        {MAPPING_FIELDS.map(({ label, key }) => (
+          <div key={key} className="flex items-center gap-3">
+            <span className="text-sm text-ink-secondary w-44 shrink-0">{label}</span>
+            <select
+              className="input flex-1 text-sm py-1.5"
+              value={(mapping[key] as string | null) ?? '(none)'}
+              onChange={(e) => setCol(key, e.target.value)}
+            >
+              {options.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      {/* isAggregated toggle */}
+      <label className="flex items-start gap-3 pt-1 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-accent-primary"
+          checked={mapping.isAggregated}
+          onChange={(e) => onChange({ ...mapping, isAggregated: e.target.checked })}
+        />
+        <span className="text-sm text-ink-secondary leading-snug">
+          Each row is already a period total (not individual transactions)
+        </span>
+      </label>
+
+      {mapping.confidence !== 'high' && (
+        <div className="flex gap-2 px-3 py-2 rounded-btn bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>
+            AI detected columns with{' '}
+            <span className="font-semibold">{mapping.confidence}</span>{' '}
+            confidence — check that the selections below look right.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mapped preview columns ───────────────────────────────────────────────────
+
+function MappedPreview({
+  mapping,
+  rows,
+}: {
+  mapping: PosColumnMapping;
+  rows: Record<string, unknown>[];
+}) {
+  const cols = [
+    mapping.itemNameCol,
+    mapping.quantityCol,
+    mapping.unitPriceCol,
+    mapping.dateCol,
+  ].filter((c): c is string => !!c);
+
+  if (cols.length === 0 || rows.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-ink-secondary uppercase tracking-wide">
+        Preview — first {rows.length} rows
+      </p>
+      <PreviewTable headers={cols} rows={rows} />
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PosUploadPage() {
@@ -201,10 +300,24 @@ export default function PosUploadPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Local copy of mapping that the user can edit in the confirming stage
+  const [editMapping, setEditMapping] = useState<PosColumnMapping | null>(null);
+
   async function handleFile(file: File) {
     setApiError(null);
-    const base64 = await fileToBase64(file);
-    setStage({ kind: 'detecting', fileName: file.name });
+    setEditMapping(null);
+    setStage({ kind: 'reading', fileName: file.name });
+
+    let base64: string;
+    try {
+      base64 = await fileToBase64(file);
+    } catch {
+      setApiError('Could not read file.');
+      setStage({ kind: 'idle' });
+      return;
+    }
+
+    setStage({ kind: 'detecting', fileName: file.name, base64 });
 
     try {
       const res = await fetch('/api/upload/pos', {
@@ -220,11 +333,18 @@ export default function PosUploadPage() {
         return;
       }
 
+      const mapping = data.mapping as PosColumnMapping;
+      setEditMapping(mapping);
       setStage({
-        kind: 'preview',
+        kind: 'confirming',
         fileName: file.name,
         base64,
-        preview: data as ParsePreview,
+        headers: data.headers as string[],
+        mapping,
+        previewRows: data.previewRows as Record<string, unknown>[],
+        totalRows: data.totalRows as number,
+        detectedMonths: (data.detectedMonths as string[]) ?? [],
+        llmError: (data.llmError as string | null) ?? null,
       });
     } catch {
       setApiError('Network error. Please try again.');
@@ -237,15 +357,16 @@ export default function PosUploadPage() {
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) await handleFile(file);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragging(true); }, []);
   const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragging(false); }, []);
 
   async function handleImport() {
-    if (stage.kind !== 'preview') return;
-    const { fileName, base64, preview } = stage;
-    if (!preview.usable) return;
+    if (stage.kind !== 'confirming') return;
+    const { fileName, base64, totalRows, detectedMonths } = stage;
+    const confirmedMapping = editMapping ?? stage.mapping;
 
     setStage({ kind: 'importing' });
     setApiError(null);
@@ -254,20 +375,47 @@ export default function PosUploadPage() {
       const res = await fetch('/api/upload/pos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, base64, month: CURRENT_MONTH, dryRun: false }),
+        body: JSON.stringify({
+          fileName,
+          base64,
+          month: CURRENT_MONTH,
+          dryRun: false,
+          confirmedMapping,
+        }),
       });
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
         setApiError(data.error ?? 'Import failed. Please try again.');
-        setStage({ kind: 'preview', fileName, base64, preview });
+        // Restore confirming stage
+        setStage({
+          kind: 'confirming',
+          fileName,
+          base64,
+          headers: stage.headers,
+          mapping: stage.mapping,
+          previewRows: stage.previewRows,
+          totalRows,
+          detectedMonths,
+          llmError: stage.llmError,
+        });
         return;
       }
 
-      setStage({ kind: 'done', rowCount: data.rowCount, systemLabel: data.systemLabel, savedMonths: data.savedMonths ?? [] });
+      setStage({ kind: 'done', rowCount: data.rowCount, savedMonths: data.savedMonths ?? [] });
     } catch {
       setApiError('Network error. Please try again.');
-      setStage({ kind: 'preview', fileName, base64, preview });
+      setStage({
+        kind: 'confirming',
+        fileName,
+        base64,
+        headers: stage.headers,
+        mapping: stage.mapping,
+        previewRows: stage.previewRows,
+        totalRows,
+        detectedMonths,
+        llmError: stage.llmError,
+      });
     }
   }
 
@@ -291,7 +439,6 @@ export default function PosUploadPage() {
                 {stage.savedMonths.length === 1 ? formatMonth(stage.savedMonths[0]) : MONTH_LABEL}
               </p>
             )}
-            <p className="text-xs text-ink-secondary">{stage.systemLabel}</p>
             <Link href="/mapping" className="btn-primary inline-block mt-2">
               Review ingredient mapping
             </Link>
@@ -301,17 +448,20 @@ export default function PosUploadPage() {
     );
   }
 
-  const isDetecting = stage.kind === 'detecting';
+  const isDetecting = stage.kind === 'detecting' || stage.kind === 'reading';
   const isImporting = stage.kind === 'importing';
   const busy = isDetecting || isImporting;
-  const preview = stage.kind === 'preview' ? stage.preview : null;
-  const isStoreHub = preview?.system === 'storehub-best-sellers' || preview?.system === 'storehub-daily';
+  const confirming = stage.kind === 'confirming' ? stage : null;
+  const activeMapping = editMapping ?? confirming?.mapping ?? null;
 
   return (
     <main className="min-h-screen flex flex-col">
       <AppHeader title={t('pos.title')} backHref="/dashboard" />
 
       <div className="flex-1 px-5 pt-6 pb-28 max-w-2xl mx-auto w-full space-y-4">
+
+        {/* Step indicator */}
+        <StepIndicator stage={stage} />
 
         {/* Month indicator */}
         <div className="card-muted flex items-center gap-3 py-3 px-4">
@@ -321,7 +471,7 @@ export default function PosUploadPage() {
           </p>
         </div>
 
-        {/* Drop zone — hide once we have a preview */}
+        {/* Drop zone — idle state */}
         {stage.kind === 'idle' && (
           <>
             <p className="text-sm text-ink-secondary">
@@ -346,34 +496,46 @@ export default function PosUploadPage() {
               <Upload size={36} className={dragging ? 'text-accent-primary' : 'text-ink-secondary'} />
               <div className="text-center">
                 <p className="font-medium text-ink-primary">{t('pos.dropzone')}</p>
-                <p className="text-xs text-ink-secondary mt-1">XLSX, XLS, CSV — auto-detected</p>
+                <p className="text-xs text-ink-secondary mt-1">XLSX, XLS, CSV — AI detects columns automatically</p>
               </div>
             </div>
 
-            {/* Supported formats hint */}
             <div className="flex gap-3 px-4 py-3 rounded-btn border border-paper-200 bg-paper-50 text-xs text-ink-secondary">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <p>
-                Supported: <strong>Square</strong> (Items CSV), <strong>Loyverse</strong> (Receipts by Item),{' '}
-                <strong>StoreHub</strong> (Best Selling Products), or any spreadsheet — AI will detect the columns automatically.
+                Upload any spreadsheet export from your POS — Square, Loyverse, StoreHub, or any custom format.
+                AI will detect the columns automatically and let you confirm before importing.
               </p>
             </div>
           </>
         )}
 
-        {/* Detecting spinner */}
-        {isDetecting && (
+        {/* Reading / detecting spinner */}
+        {(stage.kind === 'reading' || stage.kind === 'detecting') && (
           <div className="card flex items-center gap-4 py-6 px-5">
             <Loader2 className="w-6 h-6 animate-spin text-accent-primary shrink-0" />
             <div>
-              <p className="font-medium text-ink-primary">Analysing file…</p>
-              <p className="text-xs text-ink-secondary mt-0.5">{(stage as { fileName: string }).fileName}</p>
+              <p className="font-medium text-ink-primary">
+                {stage.kind === 'reading' ? 'Reading file…' : 'Detecting columns…'}
+              </p>
+              <p className="text-xs text-ink-secondary mt-0.5">{stage.fileName}</p>
             </div>
           </div>
         )}
 
-        {/* Preview state */}
-        {preview && stage.kind === 'preview' && (
+        {/* Importing spinner */}
+        {stage.kind === 'importing' && (
+          <div className="card flex items-center gap-4 py-6 px-5">
+            <Loader2 className="w-6 h-6 animate-spin text-accent-primary shrink-0" />
+            <div>
+              <p className="font-medium text-ink-primary">Importing…</p>
+              <p className="text-xs text-ink-secondary mt-0.5">Saving rows to your account</p>
+            </div>
+          </div>
+        )}
+
+        {/* Confirming stage */}
+        {confirming && activeMapping && (
           <>
             {/* File row */}
             <div className="card flex items-center gap-3 py-3 px-4">
@@ -381,11 +543,16 @@ export default function PosUploadPage() {
                 <Upload size={15} className="text-ink-secondary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-ink-primary truncate">{stage.fileName}</p>
-                <p className="text-xs text-ink-secondary mt-0.5">{preview.rowCount.toLocaleString()} rows</p>
+                <p className="text-sm font-medium text-ink-primary truncate">{confirming.fileName}</p>
+                <p className="text-xs text-ink-secondary mt-0.5">{confirming.totalRows.toLocaleString()} rows</p>
               </div>
               <button
-                onClick={() => { setStage({ kind: 'idle' }); setApiError(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                onClick={() => {
+                  setStage({ kind: 'idle' });
+                  setApiError(null);
+                  setEditMapping(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
                 className="text-ink-secondary hover:text-ink-primary transition-colors shrink-0"
                 aria-label="Remove file"
               >
@@ -393,94 +560,58 @@ export default function PosUploadPage() {
               </button>
             </div>
 
-            {/* System badge */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <SystemBadge
-                system={preview.system}
-                label={preview.systemLabel}
-                usable={preview.usable}
-                aiDetected={preview.aiDetected}
-              />
-              {preview.isAggregated && (
-                <span className="text-xs text-ink-secondary">Period totals · no date per row</span>
-              )}
-            </div>
-
-            {/* AI detected info banner */}
-            {preview.aiDetected && preview.usable && (
-              <div className="flex gap-3 px-4 py-3 rounded-btn border border-amber-200 bg-amber-50 text-amber-800 text-sm leading-relaxed">
-                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Custom format detected by AI</p>
-                  <p className="text-xs mt-0.5 opacity-80">
-                    Your file doesn&apos;t match a known POS export — AI mapped the columns automatically.
-                    Check the preview below looks correct before importing.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Unknown + no AI mapping */}
-            {preview.system === 'unknown' && !preview.aiDetected && !preview.usable && (
+            {/* LLM error banner */}
+            {confirming.llmError && (
               <div className="flex gap-3 px-4 py-3 rounded-btn border border-paper-200 bg-paper-50 text-ink-secondary text-sm leading-relaxed">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-medium text-ink-primary">Format not recognised</p>
-                  <p>
-                    Try exporting from your POS as a CSV, or use the{' '}
-                    <strong>Square Items</strong>, <strong>Loyverse Receipts by Item</strong>, or{' '}
-                    <strong>StoreHub Best Selling Products</strong> report format.
-                  </p>
-                </div>
+                <p>{confirming.llmError}</p>
               </div>
             )}
 
             {/* Multi-month detection */}
-            {(preview.detectedMonths?.length ?? 0) > 0 && (
-              <MonthsDetectedCard months={preview.detectedMonths!} />
+            {confirming.detectedMonths.length > 0 && (
+              <MonthsDetectedCard months={confirming.detectedMonths} />
             )}
 
-            {/* StoreHub guidance */}
-            {isStoreHub && <StoreHubGuidanceCard />}
+            {/* Column picker */}
+            <ColumnPicker
+              headers={confirming.headers}
+              mapping={activeMapping}
+              onChange={(m) => setEditMapping(m)}
+            />
 
-            {/* Warnings */}
-            {preview.warnings.map((w, i) => (
-              <WarningCard key={i} text={w} isError={!preview.usable && !preview.aiDetected} />
-            ))}
+            {/* Mapped preview table */}
+            <MappedPreview mapping={activeMapping} rows={confirming.previewRows} />
 
-            {/* Preview table */}
-            {preview.usable && preview.previewHeaders.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-ink-secondary uppercase tracking-wide">
-                  Preview — first {preview.previewRows.length} rows
-                </p>
-                <PreviewTable headers={preview.previewHeaders} rows={preview.previewRows} />
-              </div>
-            )}
+            {/* Re-upload link */}
+            <div className="flex items-center gap-2 text-xs text-ink-secondary">
+              <ChevronRight className="w-3.5 h-3.5" />
+              <button
+                className="underline hover:text-ink-primary transition-colors"
+                onClick={() => {
+                  setStage({ kind: 'idle' });
+                  setEditMapping(null);
+                  setApiError(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+              >
+                Choose a different file
+              </button>
+            </div>
 
-            {/* Wrong report type: offer guidance to re-export */}
-            {!preview.usable && preview.system !== 'unknown' && (
-              <div className="card flex items-center gap-3 text-sm text-ink-primary py-3 px-4">
-                <ChevronRight className="w-4 h-4 text-ink-secondary shrink-0" />
-                <p>Select a different file or re-export from your POS system.</p>
-              </div>
-            )}
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            />
           </>
         )}
 
         {/* API error */}
         {apiError && <WarningCard text={apiError} isError />}
-
-        {/* Hidden file input for re-upload from preview state */}
-        {stage.kind === 'preview' && (
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-          />
-        )}
       </div>
 
       {/* Sticky footer */}
@@ -493,29 +624,22 @@ export default function PosUploadPage() {
             >
               Choose file
             </button>
-          ) : preview?.usable ? (
+          ) : confirming && activeMapping ? (
             <button
               onClick={handleImport}
               disabled={busy}
               className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isImporting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Importing…
-                </span>
-              ) : (preview.detectedMonths?.length ?? 0) > 1 ? (
-                `Import ${preview.rowCount.toLocaleString()} rows · ${preview.detectedMonths!.length} months`
-              ) : (
-                `Import ${preview.rowCount.toLocaleString()} rows`
-              )}
+              {confirming.detectedMonths.length > 1
+                ? `Import ${confirming.totalRows.toLocaleString()} rows · ${confirming.detectedMonths.length} months`
+                : `Import ${confirming.totalRows.toLocaleString()} rows`}
             </button>
-          ) : preview && !preview.usable ? (
-            <button
-              onClick={() => { setStage({ kind: 'idle' }); setApiError(null); }}
-              className="btn-secondary w-full"
-            >
-              Try a different file
+          ) : isImporting ? (
+            <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Importing…
+              </span>
             </button>
           ) : null}
         </div>
