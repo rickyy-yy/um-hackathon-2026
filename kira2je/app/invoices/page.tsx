@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -34,60 +34,14 @@ type Confidence = 'high' | 'medium' | 'low';
 type MockInvoice = {
   id: string;
   supplierName: string | null;
-  invoiceDate: string;
-  total: number;
+  invoiceDate: string | null;
+  total: number | null;
   confidence: Confidence;
   lineItems: LineItem[];
+  status?: string;
 };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_INVOICES: MockInvoice[] = [
-  {
-    id: 'inv-1',
-    supplierName: 'Syarikat Pembekal Segar Sdn Bhd',
-    invoiceDate: '2026-04-20',
-    total: 1420.50,
-    confidence: 'high',
-    lineItems: [
-      { description: 'Ayam Segar (1kg)', quantity: 20, unitPrice: 12.50, total: 250.00 },
-      { description: 'Beras Wangi (10kg)', quantity: 5, unitPrice: 45.00, total: 225.00 },
-      { description: 'Minyak Masak (5L)', quantity: 8, unitPrice: 32.00, total: 256.00 },
-      { description: 'Santan Peket (200ml)', quantity: 30, unitPrice: 2.80, total: 84.00 },
-      { description: 'Cili Kering (500g)', quantity: 6, unitPrice: 18.00, total: 108.00 },
-      { description: 'Bawang Merah (1kg)', quantity: 10, unitPrice: 7.50, total: 75.00 },
-      { description: 'Bawang Putih (500g)', quantity: 10, unitPrice: 8.00, total: 80.00 },
-      { description: 'Halia (1kg)', quantity: 5, unitPrice: 10.00, total: 50.00 },
-      { description: 'Serai (bundle)', quantity: 10, unitPrice: 4.50, total: 45.00 },
-      { description: 'Daun Pandan (bundle)', quantity: 15, unitPrice: 2.50, total: 37.50 },
-    ],
-  },
-  {
-    id: 'inv-2',
-    supplierName: 'Premium Fresh Market',
-    invoiceDate: '2026-04-18',
-    total: 680.00,
-    confidence: 'medium',
-    lineItems: [
-      { description: 'Daging Lembu (1kg)', quantity: 8, unitPrice: 42.00, total: 336.00 },
-      { description: 'Udang Besar (500g)', quantity: 6, unitPrice: 38.00, total: 228.00 },
-      { description: 'Ikan Siakap (1kg)', quantity: 3, unitPrice: 35.00, total: 105.00 },
-      { description: 'Tauhu Putih', quantity: 20, unitPrice: 0.55, total: 11.00 },
-      { description: 'Sayur Bayam (500g)', quantity: 10, unitPrice: 3.00, total: 30.00 },
-    ],
-  },
-  {
-    id: 'inv-3',
-    supplierName: null,
-    invoiceDate: '2026-04-15',
-    total: 340.00,
-    confidence: 'low',
-    lineItems: [
-      { description: 'Unknown item A', quantity: 10, unitPrice: 18.00, total: 180.00 },
-      { description: 'Unknown item B', quantity: 8, unitPrice: 20.00, total: 160.00 },
-    ],
-  },
-];
+const CURRENT_MONTH = '2026-04';
 
 // ─── Confidence badge ─────────────────────────────────────────────────────────
 
@@ -137,10 +91,10 @@ function WhatsAppCard() {
 
 function UploadSheet({
   onClose,
-  onAdd,
+  onRefresh,
 }: {
   onClose: () => void;
-  onAdd: (inv: MockInvoice) => void;
+  onRefresh: () => void;
 }) {
   const [processing, setProcessing] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -149,19 +103,42 @@ function UploadSheet({
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     setProcessing(true);
-    await new Promise((r) => setTimeout(r, 1800));
-    const today = new Date().toISOString().slice(0, 10);
-    onAdd({
-      id: `inv-${Date.now()}`,
-      supplierName: 'New Supplier Sdn Bhd',
-      invoiceDate: today,
-      total: parseFloat((Math.random() * 800 + 200).toFixed(2)),
-      confidence: 'medium',
-      lineItems: [
-        { description: 'Item A', quantity: 5, unitPrice: 20.00, total: 100.00 },
-        { description: 'Item B', quantity: 3, unitPrice: 15.00, total: 45.00 },
-      ],
-    });
+
+    try {
+      const images: { name: string; base64: string; mimeType: string }[] = [];
+
+      for (const file of Array.from(fileList)) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Strip data URL prefix if present
+            const b64 = result.includes(',') ? result.split(',')[1] : result;
+            resolve(b64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        images.push({ name: file.name, base64, mimeType: file.type || 'image/jpeg' });
+      }
+
+      // Use the 1.8s delay as loading state while calling API
+      const [res] = await Promise.all([
+        fetch('/api/upload/photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images }),
+        }),
+        new Promise((r) => setTimeout(r, 1800)),
+      ]);
+
+      if (res.ok) {
+        onRefresh();
+      }
+    } catch (e) {
+      console.error('[upload]', e);
+    }
+
     setProcessing(false);
     onClose();
   }
@@ -284,7 +261,7 @@ function InvoiceCard({
 
   // Editable draft state
   const [draftSupplier, setDraftSupplier] = useState(invoice.supplierName ?? '');
-  const [draftDate, setDraftDate] = useState(invoice.invoiceDate);
+  const [draftDate, setDraftDate] = useState(invoice.invoiceDate ?? '');
   const [draftTax, setDraftTax] = useState('0');
   const [draftItems, setDraftItems] = useState<LineItem[]>(invoice.lineItems);
 
@@ -294,24 +271,36 @@ function InvoiceCard({
 
   function startEdit() {
     setDraftSupplier(invoice.supplierName ?? '');
-    setDraftDate(invoice.invoiceDate);
+    setDraftDate(invoice.invoiceDate ?? '');
     setDraftTax('0');
     setDraftItems(invoice.lineItems.map((li) => ({ ...li })));
     setEditing(true);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     const items = draftItems.map((li) => ({
       ...li,
       total: li.quantity * li.unitPrice,
     }));
-    onEdit(invoice.id, {
+    const patch: Partial<MockInvoice> = {
       supplierName: draftSupplier.trim() || null,
       invoiceDate: draftDate,
       total: computedTotal,
       lineItems: items,
       confidence: 'high',
+    };
+    await fetch(`/api/invoices/${invoice.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        supplierName: patch.supplierName,
+        invoiceDate: draftDate,
+        total: computedTotal,
+        lineItems: items,
+        confidence: 'high',
+      }),
     });
+    onEdit(invoice.id, patch);
     setEditing(false);
   }
 
@@ -466,7 +455,7 @@ function InvoiceCard({
           <p className="font-semibold text-ink-primary leading-tight truncate">
             {invoice.supplierName ?? 'Unknown supplier'}
           </p>
-          <p className="text-xs text-ink-secondary mt-0.5">{invoice.invoiceDate}</p>
+          <p className="text-xs text-ink-secondary mt-0.5">{invoice.invoiceDate ?? '—'}</p>
         </div>
         <ConfidenceBadge conf={invoice.confidence} />
       </div>
@@ -474,7 +463,7 @@ function InvoiceCard({
       <div>
         <p className="text-xs text-ink-secondary">{t('queue.total')}</p>
         <p className="text-2xl font-bold text-ink-primary tabular mt-0.5">
-          RM {invoice.total.toFixed(2)}
+          RM {(invoice.total ?? 0).toFixed(2)}
         </p>
       </div>
 
@@ -528,30 +517,57 @@ function InvoiceCard({
 
 export default function ConfirmationQueuePage() {
   const t = useT();
-  const [invoices, setInvoices] = useState<MockInvoice[]>(MOCK_INVOICES);
+  const [invoices, setInvoices] = useState<MockInvoice[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [newId, setNewId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleAdd(inv: MockInvoice) {
-    setInvoices((prev) => [inv, ...prev]);
-    setNewId(inv.id);
-    setTimeout(() => setNewId(null), 2500);
+  const fetchInvoices = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/invoices?month=${CURRENT_MONTH}`);
+      if (!res.ok) throw new Error('Failed to load invoices');
+      const data = (await res.json()) as { ok: boolean; invoices: MockInvoice[] };
+      setInvoices(data.invoices ?? []);
+    } catch {
+      setError('Failed to load invoices. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [fetchInvoices]);
+
+  async function handleConfirm(id: string) {
+    const res = await fetch(`/api/invoices/${id}/confirm`, { method: 'POST' });
+    if (res.ok) {
+      setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    }
   }
 
-  function handleConfirm(id: string) {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
-  }
-
-  function handleDelete(id: string) {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+  async function handleDelete(id: string) {
+    const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    }
   }
 
   function handleEdit(id: string, patch: Partial<MockInvoice>) {
     setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, ...patch } : inv)));
   }
 
-  function confirmAllHigh() {
+  async function confirmAllHigh() {
+    const highInvoices = invoices.filter((i) => i.confidence === 'high');
+    await Promise.all(highInvoices.map((inv) => fetch(`/api/invoices/${inv.id}/confirm`, { method: 'POST' })));
     setInvoices((prev) => prev.filter((inv) => inv.confidence !== 'high'));
+  }
+
+  function handleRefresh() {
+    fetchInvoices();
   }
 
   const highCount = invoices.filter((i) => i.confidence === 'high').length;
@@ -565,6 +581,31 @@ export default function ConfirmationQueuePage() {
       Add
     </button>
   );
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex flex-col">
+        <AppHeader title={t('queue.title')} backHref="/dashboard" action={addButton} />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 size={36} className="animate-spin text-accent-primary" />
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen flex flex-col">
+        <AppHeader title={t('queue.title')} backHref="/dashboard" action={addButton} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-5">
+          <p className="text-sm text-danger text-center">{error}</p>
+          <button onClick={fetchInvoices} className="btn-secondary text-sm">
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -627,7 +668,7 @@ export default function ConfirmationQueuePage() {
         {sheetOpen && (
           <UploadSheet
             onClose={() => setSheetOpen(false)}
-            onAdd={handleAdd}
+            onRefresh={handleRefresh}
           />
         )}
       </AnimatePresence>

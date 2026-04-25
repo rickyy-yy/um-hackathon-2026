@@ -12,6 +12,7 @@ import {
   Minus,
 } from 'lucide-react';
 import { getSession } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { serverT } from '@/lib/i18n/server';
 import { mockReportData, DEMO_MONTHS } from '@/lib/mocks';
 
@@ -152,12 +153,18 @@ export default async function DashboardPage() {
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  // Demo state
-  const invoiceCount = 12 as number;
-  const invoicesPending = 3 as number;
-  const hasPOS = true as boolean;
-  const hasReport = true as boolean;
-  const businessName = 'Café Demo';
+  // Real DB data
+  const [invoiceCount, invoicesPending, posUpload, dbReport, user] = await Promise.all([
+    prisma.invoice.count({ where: { userId: session.userId, month: currentMonth } }),
+    prisma.invoice.count({ where: { userId: session.userId, month: currentMonth, status: 'pending' } }),
+    prisma.posUpload.findUnique({ where: { userId_month: { userId: session.userId, month: currentMonth } } }),
+    prisma.report.findFirst({ where: { userId: session.userId, month: currentMonth } }),
+    prisma.user.findUnique({ where: { id: session.userId }, select: { businessName: true } }),
+  ]);
+
+  const hasPOS = posUpload !== null;
+  const hasReport = dbReport !== null;
+  const businessName = user?.businessName ?? 'My Business';
 
   const displayMonth = currentMonth;
   const monthLabel = formatMonth(displayMonth);
@@ -165,7 +172,12 @@ export default async function DashboardPage() {
 
   const report = mockReportData('2026-04');
   const { totalRevenue, totalExpenses, estimatedProfit, marginPct,
-          momRevenuePct, momExpensesPct, momProfitPct, momMarginPp } = report.monthView.summary;
+          momRevenuePct, momExpensesPct, momProfitPct, momMarginPp } = hasReport && dbReport
+    ? (() => {
+        const mv = typeof dbReport.monthView === 'string' ? JSON.parse(dbReport.monthView) : dbReport.monthView;
+        return mv.summary;
+      })()
+    : report.monthView.summary;
 
   // Sidebar: compute per-month summary data
   const sidebarData = DEMO_MONTHS.map((ym, i) => {
@@ -189,8 +201,15 @@ export default async function DashboardPage() {
   let bannerAction: string;
   let bannerHref: string;
 
-  if (hasReport && report.monthView.insightBanner) {
-    bannerMessage = report.monthView.insightBanner;
+  const liveInsightBanner = hasReport && dbReport
+    ? (() => {
+        const mv = typeof dbReport.monthView === 'string' ? JSON.parse(dbReport.monthView) : dbReport.monthView as { insightBanner?: string };
+        return mv.insightBanner ?? null;
+      })()
+    : null;
+
+  if (hasReport && liveInsightBanner) {
+    bannerMessage = liveInsightBanner;
     bannerAction = t('dashboard.viewReport');
     bannerHref = `/report/${displayMonth}`;
   } else if (invoiceCount === 0) {

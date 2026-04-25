@@ -1,5 +1,8 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { ChevronLeft, Share2 } from 'lucide-react';
+import { prisma } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 import { mockReportData } from '@/lib/mocks';
 import { ReportViewToggle } from '@/components/ReportViewToggle';
 
@@ -10,8 +13,32 @@ function monthLabel(slug: string): string {
 }
 
 export default async function ReportPage({ params }: { params: { month: string } }) {
+  const session = await getSession();
+  if (!session) redirect('/');
+
   const { month } = params;
-  const report = mockReportData(month);
+
+  const dbReport = await prisma.report.findUnique({
+    where: { userId_month: { userId: session.userId, month } },
+  });
+
+  let reportData;
+  let generatedAt = 'Demo data';
+
+  if (dbReport) {
+    const mv = typeof dbReport.monthView === 'string' ? JSON.parse(dbReport.monthView) : dbReport.monthView;
+    const tv = typeof dbReport.trendsView === 'string' ? JSON.parse(dbReport.trendsView) : dbReport.trendsView;
+    reportData = { monthView: mv, trendsView: tv };
+    generatedAt = new Date(dbReport.generatedAt).toLocaleDateString('en-MY', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } else {
+    reportData = mockReportData(month);
+    generatedAt = 'Demo data';
+  }
+
   const title = `${monthLabel(month)} Report`;
 
   return (
@@ -28,7 +55,7 @@ export default async function ReportPage({ params }: { params: { month: string }
             </Link>
             <div className="min-w-0">
               <h1 className="text-xl font-semibold leading-tight">{title}</h1>
-              <p className="text-xs text-white/60 mt-0.5">Generated Apr 25, 2026</p>
+              <p className="text-xs text-white/60 mt-0.5">{generatedAt}</p>
             </div>
           </div>
           <button
@@ -42,8 +69,8 @@ export default async function ReportPage({ params }: { params: { month: string }
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 lg:px-8 py-6">
         <ReportViewToggle
-          monthView={report.monthView}
-          trendsView={report.trendsView}
+          monthView={reportData.monthView}
+          trendsView={reportData.trendsView}
           month={month}
         />
       </main>
