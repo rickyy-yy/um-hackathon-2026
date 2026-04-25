@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Upload,
@@ -10,6 +10,8 @@ import {
   Loader2,
   X,
   ChevronRight,
+  Trash2,
+  Database,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { AppHeader } from '@/components/AppHeader';
@@ -293,11 +295,65 @@ function MappedPreview({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type UploadRecord = { month: string; fileName: string; rowCount: number; createdAt: string };
+
+function ExistingUploads({ refresh }: { refresh: number }) {
+  const [uploads, setUploads] = useState<UploadRecord[]>([]);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/upload/pos')
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setUploads(j.uploads); })
+      .catch(() => {});
+  }, [refresh]);
+
+  if (uploads.length === 0) return null;
+
+  async function handleDelete(month: string) {
+    setDeleting(month);
+    await fetch('/api/upload/pos', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ month }),
+    });
+    setUploads((u) => u.filter((r) => r.month !== month));
+    setDeleting(null);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-semibold text-ink-secondary uppercase tracking-wide">
+        <Database size={13} /> Uploaded data
+      </div>
+      {uploads.map((u) => (
+        <div key={u.month} className="card-muted flex items-center justify-between gap-3 py-3 px-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <CheckCircle size={15} className="text-green-600 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink-primary">{formatMonth(u.month)}</p>
+              <p className="text-xs text-ink-secondary truncate">{u.fileName} · {u.rowCount.toLocaleString()} rows</p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleDelete(u.month)}
+            disabled={deleting === u.month}
+            className="shrink-0 p-1.5 rounded-lg text-ink-secondary hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-40"
+          >
+            {deleting === u.month ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function PosUploadPage() {
   const t = useT();
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [dragging, setDragging] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [uploadRefresh, setUploadRefresh] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Local copy of mapping that the user can edit in the confirming stage
@@ -403,6 +459,7 @@ export default function PosUploadPage() {
       }
 
       setStage({ kind: 'done', rowCount: data.rowCount, savedMonths: data.savedMonths ?? [] });
+      setUploadRefresh((n) => n + 1);
     } catch {
       setApiError('Network error. Please try again.');
       setStage({
@@ -439,9 +496,17 @@ export default function PosUploadPage() {
                 {stage.savedMonths.length === 1 ? formatMonth(stage.savedMonths[0]) : MONTH_LABEL}
               </p>
             )}
-            <Link href="/mapping" className="btn-primary inline-block mt-2">
-              Review ingredient mapping
-            </Link>
+            <div className="flex gap-3 mt-2 flex-wrap">
+              <Link href="/mapping" className="btn-primary inline-block">
+                Review ingredient mapping
+              </Link>
+              <button
+                onClick={() => setStage({ kind: 'idle' })}
+                className="btn-secondary inline-block"
+              >
+                Upload another file
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -459,6 +524,9 @@ export default function PosUploadPage() {
       <AppHeader title={t('pos.title')} backHref="/dashboard" />
 
       <div className="flex-1 px-5 pt-6 pb-28 max-w-2xl mx-auto w-full space-y-4">
+
+        {/* Existing uploads */}
+        <ExistingUploads refresh={uploadRefresh} />
 
         {/* Step indicator */}
         <StepIndicator stage={stage} />

@@ -13,6 +13,33 @@ import { llm } from '@/lib/llm';
 import { PosColumnMapping } from '@/lib/schemas';
 import type { PosColumnMapping as PosColumnMappingType } from '@/lib/schemas';
 
+export async function GET() {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ ok: false }, { status: 401 });
+
+  const uploads = await prisma.posUpload.findMany({
+    where: { userId: session.userId },
+    orderBy: { month: 'desc' },
+    select: { month: true, fileName: true, rowCount: true, createdAt: true },
+  });
+
+  return NextResponse.json({ ok: true, uploads });
+}
+
+export async function DELETE(req: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ ok: false }, { status: 401 });
+
+  const { month } = (await req.json()) as { month?: string };
+  if (!month) return NextResponse.json({ ok: false, error: 'month required' }, { status: 400 });
+
+  await prisma.posUpload.deleteMany({
+    where: { userId: session.userId, month },
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
