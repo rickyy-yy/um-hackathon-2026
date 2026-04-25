@@ -1,4 +1,4 @@
-# Kira2 je
+# Kira2 Je
 
 **AI-powered menu profitability strategist for Malaysian micro F&B SMEs.**
 
