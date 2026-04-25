@@ -104,6 +104,8 @@ export async function POST(req: Request) {
   const rowsToSave = finalRows.length > 200 ? aggregateSalesRows(finalRows) : finalRows;
   console.log(`[pos-upload] aggregated ${finalRows.length} → ${rowsToSave.length} rows for DB`);
 
+  const parsedDataStr = JSON.stringify(rowsToSave);
+
   try {
     await prisma.posUpload.upsert({
       where: { userId_month: { userId: session.userId, month } },
@@ -113,13 +115,13 @@ export async function POST(req: Request) {
         fileName,
         rowCount: finalRows.length,
         posType: parsed.system,
-        parsedData: rowsToSave as never,
+        parsedData: parsedDataStr,
       },
       update: {
         fileName,
         rowCount: finalRows.length,
         posType: parsed.system,
-        parsedData: rowsToSave as never,
+        parsedData: parsedDataStr,
         createdAt: new Date(),
       },
     });
