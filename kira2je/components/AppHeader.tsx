@@ -8,10 +8,12 @@ export function AppHeader({
   title,
   subtitle,
   backHref,
+  action,
 }: {
   title: string;
   subtitle?: string;
   backHref?: string;
+  action?: React.ReactNode;
 }) {
   return (
     <header className="bg-accent-primary text-white px-5 lg:px-8 pt-5 pb-4 shrink-0">
@@ -27,7 +29,10 @@ export function AppHeader({
             {subtitle && <p className="text-xs opacity-80 mt-0.5">{subtitle}</p>}
           </div>
         </div>
-        <LanguageToggle />
+        <div className="flex items-center gap-2 shrink-0">
+          {action}
+          <LanguageToggle />
+        </div>
       </div>
     </header>
   );
