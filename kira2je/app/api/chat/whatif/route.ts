@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { llm } from '@/lib/llm';
 import { getLocale } from '@/lib/i18n/server';
-import { mockReportData } from '@/lib/mocks';
+import { mockReportData, WHATIF_CACHE } from '@/lib/mocks';
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -17,6 +17,9 @@ export async function POST(req: Request) {
   if (!question || question.trim().length < 4) {
     return NextResponse.json({ ok: false, error: 'Question too short' }, { status: 400 });
   }
+
+  const cached = WHATIF_CACHE[question.trim()];
+  if (cached) return NextResponse.json({ ok: true, answer: cached });
 
   // Find report by id or month
   const reportMonth = month ?? '2026-04';

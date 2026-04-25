@@ -33,6 +33,51 @@ function MenuChip({ label }: { label: string }) {
   );
 }
 
+// ─── Cost breakdown panel ─────────────────────────────────────────────────────
+
+function CostBreakdownPanel({ mapping }: { mapping: MappingProposal }) {
+  if (!mapping.unitCost || !mapping.portionsPerUnit || !mapping.costPerPortion) return null;
+
+  const quantityUnit = mapping.quantity?.match(/\/(\w+)/)?.[1] ?? 'unit';
+
+  return (
+    <div className="mt-2 bg-paper-50 border border-paper-200 rounded-card p-3 space-y-2">
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+        <div>
+          <span className="text-ink-secondary">Unit cost: </span>
+          <span className="font-semibold text-ink-primary">RM {mapping.unitCost.toFixed(2)}/{quantityUnit}</span>
+        </div>
+        <div>
+          <span className="text-ink-secondary">Portions per unit: </span>
+          <span className="font-semibold text-ink-primary">{mapping.portionsPerUnit}</span>
+        </div>
+        <div>
+          <span className="text-ink-secondary">Cost per portion: </span>
+          <span className="font-semibold text-accent-primary">RM {mapping.costPerPortion.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {mapping.menuItemPortions && Object.keys(mapping.menuItemPortions).length > 0 && (
+        <div className="space-y-1 pt-2 border-t border-paper-200">
+          <p className="text-[10px] text-ink-secondary font-semibold uppercase tracking-wide">Ingredient cost per dish</p>
+          {Object.entries(mapping.menuItemPortions).map(([dish, portions]) => {
+            const cost = portions * (mapping.costPerPortion ?? 0);
+            return (
+              <div key={dish} className="flex items-center justify-between gap-2">
+                <span className="text-xs text-ink-primary">{dish}</span>
+                <span className="text-xs text-ink-secondary number whitespace-nowrap">
+                  {portions} × RM {mapping.costPerPortion?.toFixed(2)} ={' '}
+                  <span className="font-semibold text-ink-primary">RM {cost.toFixed(2)}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Inline edit panel ────────────────────────────────────────────────────────
 
 const ALL_MENU_ITEMS = [
@@ -124,6 +169,8 @@ function MappingRow({
   onUpdateMenuItems: (items: string[]) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [showCost, setShowCost] = useState(false);
+  const hasCostData = !!(mapping.unitCost && mapping.portionsPerUnit);
 
   return (
     <div
@@ -186,6 +233,22 @@ function MappingRow({
               )}
             </div>
           )}
+
+          {/* Cost breakdown toggle */}
+          {hasCostData && !editing && (
+            <button
+              onClick={() => setShowCost((v) => !v)}
+              className="flex items-center gap-1 text-xs text-accent-primary hover:text-accent-primary/75 transition-colors mt-0.5"
+            >
+              <ChevronRight
+                size={12}
+                className={`transition-transform duration-200 ${showCost ? 'rotate-90' : ''}`}
+              />
+              {showCost ? 'Hide cost breakdown' : 'Show cost per dish'}
+            </button>
+          )}
+
+          {showCost && !editing && <CostBreakdownPanel mapping={mapping} />}
 
           {/* Inline edit */}
           {editing && (

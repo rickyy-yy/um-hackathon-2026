@@ -39,6 +39,10 @@ export const MappingProposal = z.object({
   ingredient: z.string(),
   supplier: z.string().optional(),
   quantity: z.string().optional(),
+  unitCost: z.number().optional(),
+  portionsPerUnit: z.number().optional(),
+  costPerPortion: z.number().optional(),
+  menuItemPortions: z.record(z.string(), z.number()).optional(),
   menuItems: z.array(z.string()),
   confidence: z.enum(['high', 'medium', 'low']),
 });
@@ -73,6 +77,21 @@ export const AtRiskItem = z.object({
   reason: z.string(),
 });
 
+export const WaterfallItem = z.object({
+  label: z.string(),
+  value: z.number(),
+  type: z.enum(['base', 'positive', 'negative', 'total']),
+});
+export type WaterfallItem = z.infer<typeof WaterfallItem>;
+
+export const MenuMatrixItem = z.object({
+  item: z.string(),
+  marginPct: z.number(),
+  revenueShare: z.number(),
+  quadrant: z.enum(['star', 'wildcard', 'volume', 'review']),
+});
+export type MenuMatrixItem = z.infer<typeof MenuMatrixItem>;
+
 export const Recommendation = z.object({
   rank: z.number(),
   title: z.string(),
@@ -100,6 +119,8 @@ export const MonthView = z.object({
   recommendations: z.array(Recommendation),
   narrative: z.string().optional(),
   insightBanner: z.string().optional(),
+  profitWaterfall: z.array(WaterfallItem).optional(),
+  menuMatrix: z.array(MenuMatrixItem).optional(),
 });
 export type MonthView = z.infer<typeof MonthView>;
 

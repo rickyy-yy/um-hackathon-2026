@@ -59,7 +59,7 @@ export default async function ReportPage({ params }: { params: { month: string }
         </div>
       </header>
 
-      <div className="flex-1 max-w-5xl mx-auto w-full flex gap-0 lg:gap-6 px-4 lg:px-8 py-6">
+      <div className="flex-1 max-w-5xl mx-auto w-full flex flex-col lg:flex-row gap-0 lg:gap-6 px-4 lg:px-8 py-6">
         {/* Desktop sidebar */}
         <aside className="hidden lg:flex flex-col shrink-0 w-52 gap-1 pt-1">
           <p className="section-label mb-2 px-1">Report history</p>

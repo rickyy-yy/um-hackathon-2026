@@ -154,9 +154,7 @@ export default function LoginPage() {
     const j = await r.json();
     setLoading(false);
     if (!j.ok) { toast.error(j.error || t('login.errorInvalidOtp')); return; }
-    if (!j.hasProfile) router.push('/setup');
-    else if (j.hasReport) router.push(`/dashboard?reportId=${j.reportId}`);
-    else router.push('/onboarding');
+    router.push('/dashboard');
   }
 
   return (

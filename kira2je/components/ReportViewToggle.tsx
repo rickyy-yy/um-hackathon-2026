@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, TrendingUp, TrendingDown, Send, Sparkles } from 'lucide-react';
-import type { MonthView, TrendsView, WhatIfAnswer } from '@/lib/schemas';
+import type { MonthView, TrendsView, WhatIfAnswer, WaterfallItem, MenuMatrixItem } from '@/lib/schemas';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -13,10 +13,106 @@ function fmt(n: number) {
 function fmtPct(n: number) { return `${n.toFixed(1)}%`; }
 function signedPct(n: number) { return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`; }
 
+// ─── Profit waterfall chart ───────────────────────────────────────────────────
+
+function WaterfallChart({ items }: { items: WaterfallItem[] }) {
+  const maxAbs = Math.max(...items.map((it) => Math.abs(it.value)));
+  return (
+    <div className="space-y-1.5">
+      {items.map((item, i) => {
+        const barPct = (Math.abs(item.value) / maxAbs) * 70 + 10;
+        const isNeg = item.type === 'negative';
+        const isPos = item.type === 'positive';
+        const barColor =
+          item.type === 'base' || item.type === 'total'
+            ? 'bg-accent-primary'
+            : isPos
+            ? 'bg-accent-secondary'
+            : 'bg-danger';
+        return (
+          <motion.div
+            key={item.label}
+            className="flex items-center gap-2"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 + i * 0.07, duration: 0.25 }}
+          >
+            <span className="w-36 shrink-0 text-[11px] text-ink-secondary text-right leading-tight pr-1">
+              {item.label}
+            </span>
+            <div className="flex-1 flex items-center h-6">
+              <motion.div
+                className={`h-full rounded-sm flex items-center px-2 ${barColor}`}
+                initial={{ width: '0%' }}
+                animate={{ width: `${barPct}%` }}
+                transition={{ delay: 0.45 + i * 0.07, duration: 0.5, ease: 'easeOut' }}
+              >
+                <span className="text-[10px] font-semibold text-white whitespace-nowrap">
+                  {isNeg ? '−' : isPos ? '+' : ''}RM {Math.abs(item.value).toLocaleString('en-MY')}
+                </span>
+              </motion.div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Menu performance matrix ──────────────────────────────────────────────────
+
+function MenuMatrixGrid({ items }: { items: MenuMatrixItem[] }) {
+  type Quad = 'star' | 'wildcard' | 'volume' | 'review';
+  const byQ = (q: Quad) => items.filter((it) => it.quadrant === q);
+  const quads: { id: Quad; label: string; desc: string; color: string; textColor: string }[] = [
+    { id: 'wildcard', label: 'Wildcards', desc: 'High margin · Low volume', color: 'bg-accent-primary/10 border-accent-primary/25', textColor: 'text-accent-primary' },
+    { id: 'star', label: 'Stars', desc: 'High margin · High volume', color: 'bg-accent-secondary/10 border-accent-secondary/30', textColor: 'text-accent-secondary' },
+    { id: 'review', label: 'Review', desc: 'Low margin · Low volume', color: 'bg-danger/5 border-danger/20', textColor: 'text-danger' },
+    { id: 'volume', label: 'Volume drivers', desc: 'Low margin · High volume', color: 'bg-amber-50 border-amber-200', textColor: 'text-amber-700' },
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-[9px] text-ink-secondary px-1">
+        <span>← Low revenue share</span>
+        <span>High revenue share →</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {quads.map((q) => (
+          <motion.div
+            key={q.id}
+            className={`border rounded-card p-3 space-y-1.5 ${q.color}`}
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4, duration: 0.3 }}
+          >
+            <div>
+              <p className={`text-xs font-bold ${q.textColor}`}>{q.label}</p>
+              <p className="text-[9px] text-ink-secondary leading-tight">{q.desc}</p>
+            </div>
+            <div className="flex flex-col gap-1 mt-1">
+              {byQ(q.id).length === 0 ? (
+                <span className="text-[10px] text-ink-secondary italic">None</span>
+              ) : (
+                byQ(q.id).map((it) => (
+                  <div key={it.item} className="flex items-center justify-between gap-1">
+                    <span className="text-[11px] font-medium text-ink-primary leading-tight">{it.item}</span>
+                    <span className="text-[10px] text-ink-secondary number shrink-0">{it.marginPct}%</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <p className="text-[9px] text-ink-secondary">High margin ≥38% · High revenue share ≥15%</p>
+    </div>
+  );
+}
+
 // ─── This Month view ──────────────────────────────────────────────────────────
 
 function MonthViewPanel({ data }: { data: MonthView }) {
-  const { summary, topPerformers, costBreakdown, atRiskItems, recommendations, narrative } = data;
+  const { summary, topPerformers, costBreakdown, atRiskItems, recommendations, narrative, profitWaterfall, menuMatrix } = data;
 
   return (
     <div className="space-y-6">
@@ -133,6 +229,32 @@ function MonthViewPanel({ data }: { data: MonthView }) {
         </div>
       </motion.div>
 
+      {/* Profit waterfall */}
+      {profitWaterfall && profitWaterfall.length > 0 && (
+        <motion.div
+          className="card space-y-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.35 }}
+        >
+          <p className="section-label">Profit waterfall — what drove the change</p>
+          <WaterfallChart items={profitWaterfall} />
+        </motion.div>
+      )}
+
+      {/* Menu performance matrix */}
+      {menuMatrix && menuMatrix.length > 0 && (
+        <motion.div
+          className="card space-y-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.42, duration: 0.35 }}
+        >
+          <p className="section-label">Menu performance matrix</p>
+          <MenuMatrixGrid items={menuMatrix} />
+        </motion.div>
+      )}
+
       {/* At-risk items */}
       {atRiskItems.length > 0 && (
         <motion.div
@@ -222,7 +344,9 @@ function TrendsViewPanel({ data }: { data: TrendsView }) {
   }
 
   const maxValue = Math.max(...marginOverTime.map((m) => m.revenue));
-  const maxMargin = Math.max(...marginOverTime.map((m) => m.marginPct), 50);
+  const marginVals = marginOverTime.map((m) => m.marginPct);
+  const marginFloor = Math.max(0, Math.min(...marginVals) - 4);
+  const marginRange = Math.max(...marginVals) - marginFloor + 2;
 
   return (
     <div className="space-y-6">
@@ -300,7 +424,7 @@ function TrendsViewPanel({ data }: { data: TrendsView }) {
         <p className="section-label">Margin trajectory</p>
         <div className="flex items-end gap-3 h-24 pt-2">
           {marginOverTime.map((pt, i) => {
-            const heightPct = (pt.marginPct / maxMargin) * 100;
+            const heightPct = ((pt.marginPct - marginFloor) / marginRange) * 80 + 10;
             return (
               <div key={pt.month} className="flex-1 flex flex-col items-center justify-end gap-1">
                 <span className="text-[10px] font-semibold text-ink-secondary number">{fmtPct(pt.marginPct)}</span>

@@ -27,14 +27,84 @@ export function mockInvoiceOcr(): InvoiceOcrResult {
 export function mockMappingResult(): IngredientMappingResult {
   return {
     mappings: [
-      { ingredient: 'Chicken breast (frozen)', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '20kg', menuItems: ['Grilled Chicken Set', 'Chicken Rice', 'Chicken Chop'], confidence: 'high' },
-      { ingredient: 'Basmati rice', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '50kg', menuItems: ['Chicken Rice', 'Nasi Goreng Kampung', 'Nasi Lemak'], confidence: 'high' },
-      { ingredient: 'Coconut milk (ready pack)', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '24 packs', menuItems: ['Nasi Lemak', 'Laksa'], confidence: 'high' },
-      { ingredient: 'Cooking oil', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '20L', menuItems: ['Nasi Goreng Kampung', 'Chicken Chop', 'Grilled Chicken Set', 'Mee Goreng'], confidence: 'medium' },
+      {
+        ingredient: 'Chicken breast (frozen)',
+        supplier: 'Syarikat Pembekal Segar Sdn Bhd',
+        quantity: '80kg · RM 18.50/kg',
+        menuItems: ['Grilled Chicken Set', 'Chicken Rice', 'Chicken Chop'],
+        confidence: 'high',
+        unitCost: 18.50,
+        portionsPerUnit: 4,
+        costPerPortion: 4.63,
+        menuItemPortions: {
+          'Grilled Chicken Set': 1.5,
+          'Chicken Rice': 1.0,
+          'Chicken Chop': 1.6,
+        },
+      },
+      {
+        ingredient: 'Basmati rice',
+        supplier: 'Syarikat Pembekal Segar Sdn Bhd',
+        quantity: '50kg · RM 5.20/kg',
+        menuItems: ['Chicken Rice', 'Nasi Goreng Kampung', 'Nasi Lemak'],
+        confidence: 'high',
+        unitCost: 5.20,
+        portionsPerUnit: 20,
+        costPerPortion: 0.26,
+        menuItemPortions: {
+          'Chicken Rice': 1.0,
+          'Nasi Goreng Kampung': 1.0,
+          'Nasi Lemak': 0.8,
+        },
+      },
+      {
+        ingredient: 'Coconut milk (ready pack)',
+        supplier: 'Syarikat Pembekal Segar Sdn Bhd',
+        quantity: '24 packs · RM 3.80/pack',
+        menuItems: ['Nasi Lemak', 'Laksa'],
+        confidence: 'high',
+        unitCost: 3.80,
+        portionsPerUnit: 3,
+        costPerPortion: 1.27,
+        menuItemPortions: {
+          'Nasi Lemak': 0.5,
+          'Laksa': 1.0,
+        },
+      },
+      {
+        ingredient: 'Cooking oil',
+        supplier: 'Syarikat Pembekal Segar Sdn Bhd',
+        quantity: '20L · RM 6.50/L',
+        menuItems: ['Nasi Goreng Kampung', 'Chicken Chop', 'Grilled Chicken Set', 'Mee Goreng'],
+        confidence: 'medium',
+        unitCost: 6.50,
+        portionsPerUnit: 25,
+        costPerPortion: 0.26,
+        menuItemPortions: {
+          'Nasi Goreng Kampung': 1.0,
+          'Grilled Chicken Set': 0.5,
+          'Mee Goreng': 1.0,
+          'Chicken Chop': 0.5,
+        },
+      },
+      {
+        ingredient: 'Beverages concentrate',
+        supplier: 'Syarikat Pembekal Segar Sdn Bhd',
+        quantity: '10 bottles · RM 10.00/btl',
+        menuItems: ['Teh Tarik', 'Milo Dinosaur', 'Sirap'],
+        confidence: 'medium',
+        unitCost: 10.00,
+        portionsPerUnit: 30,
+        costPerPortion: 0.33,
+        menuItemPortions: {
+          'Teh Tarik': 1.0,
+          'Milo Dinosaur': 1.2,
+          'Sirap': 0.8,
+        },
+      },
       { ingredient: 'Mixed vegetables', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '10kg', menuItems: ['Mee Goreng', 'Nasi Goreng Kampung'], confidence: 'medium' },
       { ingredient: 'Eggs (Grade A)', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '120 pcs', menuItems: ['Nasi Goreng Kampung', 'Mee Goreng', 'Set Breakfast'], confidence: 'high' },
       { ingredient: 'Packaging boxes', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '100 pcs', menuItems: ['Chicken Rice', 'Nasi Goreng Kampung', 'Takeaway orders'], confidence: 'low' },
-      { ingredient: 'Beverages concentrate', supplier: 'Syarikat Pembekal Segar Sdn Bhd', quantity: '10 bottles', menuItems: ['Teh Tarik', 'Milo Dinosaur', 'Sirap'], confidence: 'medium' },
     ],
     unmappedIngredients: ['Spices & condiments (assorted)'],
     unmappedMenuItems: ['Laksa'],
@@ -50,7 +120,6 @@ export function mockReportData(month: string = '2026-04'): ReportData {
   const profit = revenue - expenses;
   const marginPct = Math.round((profit / revenue) * 1000) / 10;
 
-  // Month-over-month changes
   const prevRevenue = isFeb ? null : isMar ? 28400 : 31200;
   const prevExpenses = isFeb ? null : isMar ? 19800 : 21600;
   const prevProfit = isFeb ? null : isMar ? 8600 : 9600;
@@ -61,7 +130,6 @@ export function mockReportData(month: string = '2026-04'): ReportData {
   const momProfitPct = prevProfit ? Math.round(((profit - prevProfit) / prevProfit) * 1000) / 10 : null;
   const momMarginPp = prevMargin ? Math.round((marginPct - prevMargin) * 10) / 10 : null;
 
-  // Per-month top performers (slightly different mix to feel real)
   const topPerformers = isFeb
     ? [
         { item: 'Teh Tarik', revenue: 6800, estimatedCost: 2040, profit: 4760, marginPct: 70.0, profitContributionPct: 55.3 },
@@ -97,6 +165,42 @@ export function mockReportData(month: string = '2026-04'): ReportData {
     : isMar
     ? 'Chicken costs rose 8.2% mid-month — your chicken dishes collectively lost ~RM 380 in margin. Grilled Chicken Set launch offset the damage.'
     : 'Grilled Chicken Set generated 34.5% of your total profit this month. A RM 2 price increase could add RM 1,260/month with minimal volume risk.';
+
+  // Profit waterfall — explains MoM change (April only; March gets a simpler version)
+  const profitWaterfall = isFeb
+    ? undefined
+    : isMar
+    ? [
+        { label: 'Feb profit', value: 8600, type: 'base' as const },
+        { label: 'Grilled Chicken Set launch', value: 2520, type: 'positive' as const },
+        { label: 'General traffic growth', value: 200, type: 'positive' as const },
+        { label: 'Chicken cost increase', value: -1300, type: 'negative' as const },
+        { label: 'New packaging costs', value: -300, type: 'negative' as const },
+        { label: 'Recipe learning waste', value: -120, type: 'negative' as const },
+        { label: 'Mar profit', value: 9600, type: 'total' as const },
+      ]
+    : [
+        { label: 'Mar profit', value: 9600, type: 'base' as const },
+        { label: 'GCS volume growth', value: 3650, type: 'positive' as const },
+        { label: 'Chicken cost ↑ 8.2%', value: -1600, type: 'negative' as const },
+        { label: 'Cooking oil ↑ 4.1%', value: -800, type: 'negative' as const },
+        { label: 'Laksa spoilage waste', value: -280, type: 'negative' as const },
+        { label: 'Packaging fee intro', value: 380, type: 'positive' as const },
+        { label: 'Apr profit', value: 10950, type: 'total' as const },
+      ];
+
+  // Menu performance matrix (April only — needs 3 months of data for context)
+  const menuMatrix = (!isFeb && !isMar)
+    ? [
+        { item: 'Grilled Chicken Set', marginPct: 45, revenueShare: 24.1, quadrant: 'star' as const },
+        { item: 'Chicken Rice', marginPct: 40, revenueShare: 17.8, quadrant: 'star' as const },
+        { item: 'Teh Tarik', marginPct: 70, revenueShare: 11.2, quadrant: 'wildcard' as const },
+        { item: 'Nasi Goreng Kampung', marginPct: 38, revenueShare: 16.6, quadrant: 'volume' as const },
+        { item: 'Set Breakfast', marginPct: 34, revenueShare: 13.2, quadrant: 'volume' as const },
+        { item: 'Mee Goreng', marginPct: 30, revenueShare: 9.2, quadrant: 'review' as const },
+        { item: 'Laksa', marginPct: 22, revenueShare: 3.8, quadrant: 'review' as const },
+      ]
+    : undefined;
 
   return {
     monthView: {
@@ -147,6 +251,8 @@ export function mockReportData(month: string = '2026-04'): ReportData {
           ],
       narrative,
       insightBanner,
+      profitWaterfall,
+      menuMatrix,
     },
     trendsView: {
       summary: {
@@ -232,7 +338,7 @@ export function mockWhatIf(question: string): WhatIfAnswer {
       risks: ["GrabFood's algorithm may deprioritize your listing", 'Some delivery customers won\'t convert to dine-in'],
     };
   }
-  if (/chicken|ayam|supplier|pembekal/.test(q)) {
+  if (/chicken|ayam|supplier|pembekal|renegotiate/.test(q)) {
     return {
       answer: 'You\'re buying 80kg of chicken breast/month at RM 18.50/kg — that\'s retail pricing. At this volume, a wholesale contract should get you RM 15–16/kg. One comparison call to a second supplier could save RM 200–280/month permanently. Given that chicken costs rose 8.2% in March, locking in a wholesale rate now hedges against further increases.',
       projectedDeltaRm: 640,
@@ -245,3 +351,27 @@ export function mockWhatIf(question: string): WhatIfAnswer {
     risks: ['Changes without clear data often cost more than they save'],
   };
 }
+
+// Pre-cached responses for the 4 suggestion chip questions — instant, no LLM call needed
+export const WHATIF_CACHE: Record<string, WhatIfAnswer> = {
+  'What if I raise Grilled Chicken Set by RM 2?': {
+    answer: 'Raising the Grilled Chicken Set by RM 2 is your safest price move right now. It\'s already your top performer at 45% margin and 34.5% of total profit. Customers buying a RM 22 set are not typically price-sensitive. Best case (no volume drop): RM 2 × ~380 units = +RM 760/month. Likely case (5% drop): net +RM 540/month. Even at 10% drop: still +RM 320/month. The original recommendation estimated RM 1,260 — that assumes higher baseline volume. Recommendation: raise to RM 24 and monitor for 2 weeks on dine-in first, then update delivery platforms.',
+    projectedDeltaRm: 540,
+    risks: ['Delivery platform customers are more price-sensitive than dine-in', 'GrabFood ranking may dip temporarily', 'If volume drops beyond 15%, net gain turns marginal'],
+  },
+  'What if I remove Laksa from the menu?': {
+    answer: 'Removing Laksa saves RM 180/month in coconut milk spoilage and recovers ~45 min of daily prep time. At only 8 orders/week, it represents 0.3% of revenue but takes disproportionate prep overhead. The coconut milk you buy for Laksa expires before you can use it all — you\'re effectively subsidising 2–3 wasted packets per week. Redirect that capacity to Grilled Chicken Set or Chicken Rice prep. Alternatively, test "Laksa Thursdays only" — if weekly orders jump to 20+, it becomes viable again. Below 15 orders/week, removal is the right call.',
+    projectedDeltaRm: 840,
+    risks: ['May lose 8 loyal weekly Laksa customers', 'Slightly reduced menu breadth', 'Regulars may not see the "Laksa Thursdays" notice'],
+  },
+  'What if I add a RM 0.50 packaging fee?': {
+    answer: 'A RM 0.50 packaging fee on all takeaway orders could recover RM 1,800/month at 120 takeaway orders/day. Your packaging cost is RM 2,868/month (12% of expenses) — this fee nearly halves that burden. Frame it as "eco-packaging" or "reusable bag initiative" — Malaysian F&B data shows <5% order drop with this framing. Recommend rolling it out on GrabFood first (delivery customers already expect surcharges), then dine-in takeaway 2 weeks later.',
+    projectedDeltaRm: 1800,
+    risks: ['Some price-sensitive delivery customers may switch to competitors', 'Requires updating all delivery platform menus', 'Initial negative reviews possible — respond with eco-framing'],
+  },
+  'What if I renegotiate chicken prices?': {
+    answer: 'You\'re buying 80kg/month at RM 18.50/kg — retail pricing. At this volume you should be paying RM 15–16/kg wholesale. A single comparison call to a second poultry supplier (try Ayamas wholesale or local cold-room suppliers) could save RM 200–280/month permanently. This is especially urgent now: chicken rose 8.2% in March. Locking in a 3-month wholesale contract hedges against further price increases. Chicken is your largest cost ingredient — it touches Grilled Chicken Set, Chicken Rice, and Chicken Chop, which together represent 62% of your revenue.',
+    projectedDeltaRm: 640,
+    risks: ['New supplier quality may differ — test 1 week before committing', 'Minimum order quantities may apply (typically 50kg+)', 'Relationship with current supplier may need managing'],
+  },
+};
