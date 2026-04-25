@@ -15,10 +15,12 @@ export async function DELETE(req: Request) {
 
   try {
     if (month) {
+      await prisma.whatIfTurn.deleteMany({ where: { userId: session.userId, report: { month } } });
       await prisma.report.deleteMany({ where: { userId: session.userId, month } });
       await prisma.posUpload.deleteMany({ where: { userId: session.userId, month } });
       await prisma.invoice.deleteMany({ where: { userId: session.userId, month } });
     } else {
+      await prisma.whatIfTurn.deleteMany({ where: { userId: session.userId } });
       await prisma.report.deleteMany({ where: { userId: session.userId } });
       await prisma.posUpload.deleteMany({ where: { userId: session.userId } });
       await prisma.invoice.deleteMany({ where: { userId: session.userId } });
