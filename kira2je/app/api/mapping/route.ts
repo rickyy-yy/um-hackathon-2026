@@ -83,8 +83,9 @@ export async function GET() {
     });
   }
 
-  // 5. Call LLM
+  // 5. Call LLM — degrade gracefully if it fails
   let result;
+  let llmError: string | null = null;
   try {
     result = await llm({
       task: 'ingredient-mapping',
@@ -95,18 +96,19 @@ export async function GET() {
     });
   } catch (e) {
     console.error('[mapping] LLM failed:', (e as Error)?.message);
-    return NextResponse.json({ ok: false, error: 'AI mapping failed. Please try again.' }, { status: 502 });
+    llmError = 'AI mapping failed — showing previously confirmed mappings only.';
   }
 
   return NextResponse.json({
     ok: true,
-    proposals: result.mappings,
+    proposals: result?.mappings ?? savedMappingsForLlm.map((m) => ({ ...m, confidence: 'low' as const })),
     confirmedIngredients: Array.from(confirmedIngredients),
-    unmappedIngredients: result.unmappedIngredients,
-    unmappedMenuItems: result.unmappedMenuItems,
+    unmappedIngredients: result?.unmappedIngredients ?? [],
+    unmappedMenuItems: result?.unmappedMenuItems ?? [],
     menuItems,
     hasInvoices,
     hasPos,
+    llmError,
   });
 }
 

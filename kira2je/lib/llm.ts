@@ -58,6 +58,8 @@ function getClient(): OpenAI {
     client = new OpenAI({
       baseURL: process.env.LLM_BASE_URL || 'https://api.ilmu.ai/v1',
       apiKey: process.env.LLM_API_KEY || 'missing-key',
+      timeout: 25000,
+      maxRetries: 0,
     });
   }
   return client;

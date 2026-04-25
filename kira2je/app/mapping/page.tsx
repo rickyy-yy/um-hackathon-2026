@@ -197,12 +197,14 @@ type ApiData = {
   menuItems: string[];
   hasInvoices: boolean;
   hasPos: boolean;
+  llmError?: string | null;
 };
 
 export default function MappingPage() {
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [llmError, setLlmError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
@@ -212,6 +214,7 @@ export default function MappingPage() {
   async function fetchMappings() {
     setLoading(true);
     setError(null);
+    setLlmError(null);
     try {
       const res = await fetch('/api/mapping');
       const json = await res.json();
@@ -222,6 +225,7 @@ export default function MappingPage() {
       const d = json as ApiData;
       setData(d);
       setMappings(d.proposals);
+      setLlmError(d.llmError ?? null);
       const confirmedSet = new Set(d.confirmedIngredients);
       setConfirmed(d.proposals.map((p) => confirmedSet.has(p.ingredient)));
     } catch {
@@ -350,6 +354,14 @@ export default function MappingPage() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+
+          {/* LLM degraded warning */}
+          {llmError && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-600" />
+              <span>{llmError}</span>
+            </div>
+          )}
 
           {/* Header row */}
           <div className="flex items-start justify-between gap-4 flex-wrap">
