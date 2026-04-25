@@ -152,7 +152,7 @@ export default function LoginPage() {
     const j = await r.json();
     setLoading(false);
     if (!j.ok) { toast.error(j.error || t('login.errorInvalidOtp')); return; }
-    window.location.href = '/dashboard';
+    window.location.href = j.hasProfile ? '/dashboard' : '/onboarding';
   }
 
   return (

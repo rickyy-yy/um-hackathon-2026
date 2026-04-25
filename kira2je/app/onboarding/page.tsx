@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -128,13 +127,12 @@ function RadioOption({
 
 // ─── Main page component ──────────────────────────────────────────────────────
 export default function OnboardingPage() {
-  const router = useRouter();
-
   const [step, setStep] = useState<Step>(1);
   const [locale, setLocale] = useState<Locale>('en');
   const [submitting, setSubmitting] = useState(false);
 
   // Form fields
+  const [name, setName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [businessType, setBusinessType] = useState('restaurant');
   const [posType, setPosType] = useState('storehub');
@@ -162,6 +160,7 @@ export default function OnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: name.trim() || businessName.trim(),
           businessName,
           businessType,
           posType,
@@ -172,7 +171,7 @@ export default function OnboardingPage() {
     } catch {
       // continue anyway for hackathon demo
     }
-    router.push('/dashboard');
+    window.location.href = '/dashboard';
   }
 
   function handleNext() {
@@ -201,6 +200,18 @@ export default function OnboardingPage() {
                 {t('onboard.step1.title')}
               </h1>
 
+              <div className="mb-4">
+                <label className="section-label block mb-2">Your name</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="e.g. Ahmad Razif"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
               <div className="mb-5">
                 <label className="section-label block mb-2">
                   {t('onboard.step1.nameLabel')}
@@ -211,7 +222,6 @@ export default function OnboardingPage() {
                   placeholder={t('onboard.step1.namePlaceholder')}
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
-                  autoFocus
                 />
               </div>
 
@@ -241,7 +251,7 @@ export default function OnboardingPage() {
               <button
                 className="btn-primary w-full"
                 onClick={handleNext}
-                disabled={!businessName.trim()}
+                disabled={!businessName.trim() || !name.trim()}
               >
                 {t('onboard.next')}
               </button>
