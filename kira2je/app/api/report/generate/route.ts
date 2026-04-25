@@ -55,16 +55,46 @@ export async function POST(req: Request) {
     });
     const salesData = posUpload ? parsePosData(posUpload.parsedData) : [];
 
-    // 3. Get historical reports (last 3, excluding current month)
+    // 3. Get historical data — prefer saved Report records, fall back to PosUpload summaries
+    const pastMonths = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(month + '-01');
+      d.setMonth(d.getMonth() - (i + 1));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
+
     const historicalReports = await prisma.report.findMany({
-      where: { userId: session.userId, month: { not: month } },
+      where: { userId: session.userId, month: { in: pastMonths } },
       orderBy: { month: 'desc' },
-      take: 3,
     });
-    const historicalData = historicalReports.map((r) => {
-      const mv = typeof r.monthView === 'string' ? JSON.parse(r.monthView) : r.monthView;
-      return mv;
-    });
+    const reportedMonths = new Set(historicalReports.map((r) => r.month));
+
+    // For months with no Report, build a lightweight summary from PosUpload
+    const unreportedMonths = pastMonths.filter((m) => !reportedMonths.has(m));
+    const pastPosUploads = unreportedMonths.length > 0
+      ? await prisma.posUpload.findMany({
+          where: { userId: session.userId, month: { in: unreportedMonths } },
+        })
+      : [];
+
+    const historicalData = [
+      ...historicalReports.map((r) => {
+        const mv = typeof r.monthView === 'string' ? JSON.parse(r.monthView) : r.monthView;
+        return { month: r.month, source: 'report', ...mv };
+      }),
+      ...pastPosUploads.map((p) => {
+        const rows = parsePosData(p.parsedData) as { itemName?: string; quantity?: number; unitPrice?: number }[];
+        const totalRevenue = rows.reduce((s, r) => s + (r.quantity ?? 0) * (r.unitPrice ?? 0), 0);
+        return {
+          month: p.month,
+          source: 'pos-only',
+          summary: { totalRevenue, totalExpenses: null, estimatedProfit: null, marginPct: null },
+          topItems: rows
+            .map((r) => ({ item: r.itemName, revenue: (r.quantity ?? 0) * (r.unitPrice ?? 0) }))
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 10),
+        };
+      }),
+    ].sort((a, b) => b.month.localeCompare(a.month)).slice(0, 6);
 
     // 4. Get ingredient mappings
     const mappingRows = await prisma.ingredientMapping.findMany({
