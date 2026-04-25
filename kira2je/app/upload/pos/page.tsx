@@ -55,6 +55,7 @@ function fileToBase64(file: File): Promise<string> {
 
 const SYSTEM_COLORS: Partial<Record<PosSystem, string>> = {
   'storehub-best-sellers': 'bg-blue-50 text-blue-700 border-blue-200',
+  'storehub-items':        'bg-blue-50 text-blue-700 border-blue-200',
   'storehub-daily':        'bg-blue-50 text-blue-700 border-blue-200',
   'square-items':          'bg-violet-50 text-violet-700 border-violet-200',
   'square-summary':        'bg-violet-50 text-violet-700 border-violet-200',

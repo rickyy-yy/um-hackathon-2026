@@ -12,6 +12,7 @@ export type PosSystem =
   | 'loyverse-receipts'
   | 'loyverse-summary'
   | 'storehub-best-sellers'
+  | 'storehub-items'
   | 'storehub-daily'
   | 'custom-itemized'
   | 'unknown';
@@ -45,6 +46,8 @@ function detectSystem(headers: string[]): PosSystem {
   if (hasAll(headers, ['average sale', 'gross sales']))           return 'loyverse-summary';
   if (hasAll(headers, ['receipt number', 'receipt type', 'cost of goods'])) return 'loyverse-receipts';
   // StoreHub — header names may include (RM) suffix or not
+  if (hasAll(headers, ['receipt no', 'product name', 'qty', 'unit price (rm)'])) return 'storehub-items';
+  if (hasAll(headers, ['receipt no', 'product name', 'qty']))     return 'storehub-items';
   if (hasAll(headers, ['total sold', 'sale / item']))             return 'storehub-best-sellers';
   if (hasAll(headers, ['total sold', 'gp (%)']))                  return 'storehub-best-sellers';
   if (hasAll(headers, ['total sold', 'cost / item']))             return 'storehub-best-sellers';
@@ -64,6 +67,7 @@ export const SYSTEM_LABELS: Record<PosSystem, string> = {
   'loyverse-receipts':     'Loyverse — Receipts',
   'loyverse-summary':      'Loyverse — Sales Summary',
   'storehub-best-sellers': 'StoreHub — Best Selling Products',
+  'storehub-items':        'StoreHub — Sales by Item',
   'storehub-daily':        'StoreHub — Daily Sales',
   'custom-itemized':       'Custom — Item-level Export',
   'unknown':               'Unknown format',
@@ -173,6 +177,37 @@ function mapStoreHubBestSellers(raw: Record<string, unknown>[]): { rows: SalesRo
       'Make sure you set the date filter to your target month in BackOffice before exporting.',
     ],
   };
+}
+
+function mapStoreHubItems(raw: Record<string, unknown>[]): { rows: SalesRow[]; warnings: string[] } {
+  const rows: SalesRow[] = [];
+  for (const r of raw) {
+    const itemName = str(r['Product Name']);
+    if (!itemName) continue;
+    // StoreHub date field may be a string like "01/04/2026" or "2026-04-01"
+    const rawDate = r['Date'];
+    let date: string | undefined;
+    if (typeof rawDate === 'string' && rawDate.includes('/')) {
+      // DD/MM/YYYY → YYYY-MM-DD
+      const parts = rawDate.split('/');
+      if (parts.length === 3) date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    } else {
+      date = excelDateToIso(rawDate);
+    }
+    const unitPrice =
+      num(r['Unit Price (RM)']) ||
+      num(r['Unit Price']) ||
+      num(r['Price (RM)']) ||
+      num(r['Price']);
+    rows.push({
+      itemName,
+      quantity: num(r['Qty']) || num(r['Quantity']),
+      unitPrice,
+      date,
+      category: str(r['Category']) || undefined,
+    });
+  }
+  return { rows, warnings: [] };
 }
 
 function excelDateToIso(v: unknown): string | undefined {
@@ -303,6 +338,7 @@ export async function parsePosFile(base64: string, fileName: string): Promise<Pa
   if (system === 'square-items')           mapped = mapSquareItems(rawRows);
   else if (system === 'square-summary')    mapped = mapSquareSummary(rawRows);
   else if (system === 'loyverse-items')    mapped = mapLoyverseItems(rawRows);
+  else if (system === 'storehub-items')    mapped = mapStoreHubItems(rawRows);
   else if (system === 'custom-itemized')   mapped = mapCustomItemized(rawRows);
   else                                     mapped = mapStoreHubBestSellers(rawRows);
 
@@ -311,6 +347,7 @@ export async function parsePosFile(base64: string, fileName: string): Promise<Pa
     'square-items':          ['Date', 'Item', 'Category', 'Qty', 'Net Sales', 'Dining Option'],
     'square-summary':        ['Item Name', 'Category', 'Items Sold', 'Net Sales'],
     'loyverse-items':        ['Date', 'Item', 'Category', 'Quantity', 'Price'],
+    'storehub-items':        ['Date', 'Product Name', 'Category', 'Qty', 'Unit Price (RM)'],
     'storehub-best-sellers': ['Product Name', 'Category', 'Total Sold', 'Total Sales (RM)', 'Sale / Item (RM)', 'GP (%)'],
     'custom-itemized':       ['date', 'item_name', 'category', 'quantity', 'unit_price_rm', 'dine_in_takeaway'],
   };
