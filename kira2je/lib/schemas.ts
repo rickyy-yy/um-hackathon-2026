@@ -38,7 +38,7 @@ export type SalesRow = z.infer<typeof SalesRow>;
 export const MappingProposal = z.object({
   ingredient: z.string(),
   supplier: z.string().optional(),
-  quantity: z.string().optional(),
+  quantity: z.union([z.string(), z.number()]).transform((v) => String(v)).optional(),
   unitCost: z.number().optional(),
   portionsPerUnit: z.number().optional(),
   costPerPortion: z.number().optional(),
