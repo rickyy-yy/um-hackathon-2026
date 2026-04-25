@@ -397,9 +397,9 @@ function TrendsViewPanel({ data }: { data: TrendsView }) {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Avg Margin', value: fmtPct(summary.avgMarginPct), cls: 'text-ink-primary' },
-          { label: 'Margin trend', value: signedPct(summary.marginTrendPct), cls: summary.marginTrendPct >= 0 ? 'positive' : 'negative' },
-          { label: 'Revenue trend', value: signedPct(summary.revenueTrendPct), cls: summary.revenueTrendPct >= 0 ? 'positive' : 'negative' },
+          { label: 'Avg Margin', value: summary.avgMarginPct != null ? fmtPct(summary.avgMarginPct) : '—', cls: 'text-ink-primary' },
+          { label: 'Margin trend', value: summary.marginTrendPct != null ? signedPct(summary.marginTrendPct) : '—', cls: (summary.marginTrendPct ?? 0) >= 0 ? 'positive' : 'negative' },
+          { label: 'Revenue trend', value: summary.revenueTrendPct != null ? signedPct(summary.revenueTrendPct) : '—', cls: (summary.revenueTrendPct ?? 0) >= 0 ? 'positive' : 'negative' },
         ].map((card, i) => (
           <motion.div
             key={card.label}

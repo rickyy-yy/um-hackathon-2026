@@ -157,9 +157,9 @@ export const MoMComparison = z.object({
 });
 
 export const TrendsSummary = z.object({
-  avgMarginPct: z.number(),
-  marginTrendPct: z.number(),
-  revenueTrendPct: z.number(),
+  avgMarginPct: z.number().nullable(),
+  marginTrendPct: z.number().nullable(),
+  revenueTrendPct: z.number().nullable(),
   monthsAnalysed: z.number(),
 });
 
@@ -168,7 +168,7 @@ export const TrendsView = z.object({
   marginOverTime: z.array(MonthDataPoint),
   supplierPriceChanges: z.array(SupplierPriceChange),
   cannibalization: z.object({
-    detected: z.boolean(),
+    detected: z.boolean().default(false),
     alerts: z.array(CannibalizationAlert),
   }),
   monthOverMonth: z.array(MoMComparison),
