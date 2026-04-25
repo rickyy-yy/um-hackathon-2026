@@ -32,6 +32,7 @@ type ParsePreview = {
   previewRows: Record<string, unknown>[];
   rowCount: number;
   aiDetected?: boolean;
+  detectedMonths?: string[];
 };
 
 type Stage =
@@ -39,7 +40,7 @@ type Stage =
   | { kind: 'detecting'; fileName: string }
   | { kind: 'preview'; fileName: string; base64: string; preview: ParsePreview }
   | { kind: 'importing' }
-  | { kind: 'done'; rowCount: number; systemLabel: string };
+  | { kind: 'done'; rowCount: number; systemLabel: string; savedMonths: string[] };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,37 @@ function WarningCard({ text, isError }: { text: string; isError?: boolean }) {
     }`}>
       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
       <p>{text}</p>
+    </div>
+  );
+}
+
+const MONTH_NAMES: Record<string, string> = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
+  '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
+  '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
+};
+
+function formatMonth(ym: string): string {
+  const [year, month] = ym.split('-');
+  return `${MONTH_NAMES[month] ?? month} ${year}`;
+}
+
+function MonthsDetectedCard({ months }: { months: string[] }) {
+  if (months.length === 0) return null;
+  const label = months.length === 1
+    ? formatMonth(months[0])
+    : `${formatMonth(months[0])} – ${formatMonth(months[months.length - 1])}`;
+  return (
+    <div className="flex gap-3 px-4 py-3 rounded-btn border border-blue-200 bg-blue-50 text-blue-800 text-sm leading-relaxed">
+      <Info className="w-4 h-4 shrink-0 mt-0.5" />
+      <div>
+        <p className="font-medium">
+          {months.length} month{months.length > 1 ? 's' : ''} of data detected — {label}
+        </p>
+        <p className="text-xs mt-0.5 opacity-80">
+          Each month will be imported separately so your historical reports stay accurate.
+        </p>
+      </div>
     </div>
   );
 }
@@ -231,7 +263,7 @@ export default function PosUploadPage() {
         return;
       }
 
-      setStage({ kind: 'done', rowCount: data.rowCount, systemLabel: data.systemLabel });
+      setStage({ kind: 'done', rowCount: data.rowCount, systemLabel: data.systemLabel, savedMonths: data.savedMonths ?? [] });
     } catch {
       setApiError('Network error. Please try again.');
       setStage({ kind: 'preview', fileName, base64, preview });
@@ -247,9 +279,18 @@ export default function PosUploadPage() {
           <div className="card w-full max-w-md text-center py-10 space-y-4">
             <CheckCircle size={48} className="text-accent-secondary mx-auto" />
             <p className="text-ink-primary font-medium text-lg">
-              {t('pos.success', { n: stage.rowCount, month: MONTH_LABEL })}
+              {stage.rowCount.toLocaleString()} rows imported
             </p>
-            <p className="text-sm text-ink-secondary">{stage.systemLabel}</p>
+            {stage.savedMonths.length > 1 ? (
+              <p className="text-sm text-ink-secondary">
+                {stage.savedMonths.length} months: {stage.savedMonths.map(formatMonth).join(', ')}
+              </p>
+            ) : (
+              <p className="text-sm text-ink-secondary">
+                {stage.savedMonths.length === 1 ? formatMonth(stage.savedMonths[0]) : MONTH_LABEL}
+              </p>
+            )}
+            <p className="text-xs text-ink-secondary">{stage.systemLabel}</p>
             <Link href="/mapping" className="btn-primary inline-block mt-2">
               Review ingredient mapping
             </Link>
@@ -393,6 +434,11 @@ export default function PosUploadPage() {
               </div>
             )}
 
+            {/* Multi-month detection */}
+            {(preview.detectedMonths?.length ?? 0) > 0 && (
+              <MonthsDetectedCard months={preview.detectedMonths!} />
+            )}
+
             {/* StoreHub guidance */}
             {isStoreHub && <StoreHubGuidanceCard />}
 
@@ -457,6 +503,8 @@ export default function PosUploadPage() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Importing…
                 </span>
+              ) : (preview.detectedMonths?.length ?? 0) > 1 ? (
+                `Import ${preview.rowCount.toLocaleString()} rows · ${preview.detectedMonths!.length} months`
               ) : (
                 `Import ${preview.rowCount.toLocaleString()} rows`
               )}

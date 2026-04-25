@@ -352,6 +352,27 @@ export async function extractRawRows(base64: string, fileName: string): Promise<
   return [];
 }
 
+// ─── Month grouping ───────────────────────────────────────────────────────────
+
+export function groupRowsByMonth(rows: SalesRow[], fallbackMonth: string): Map<string, SalesRow[]> {
+  const map = new Map<string, SalesRow[]>();
+  for (const row of rows) {
+    const month = row.date ? row.date.slice(0, 7) : fallbackMonth;
+    const arr = map.get(month) ?? [];
+    arr.push(row);
+    map.set(month, arr);
+  }
+  return map;
+}
+
+export function detectMonths(rows: SalesRow[]): string[] {
+  const months = new Set<string>();
+  for (const row of rows) {
+    if (row.date) months.add(row.date.slice(0, 7));
+  }
+  return [...months].sort();
+}
+
 // ─── Row aggregation ──────────────────────────────────────────────────────────
 
 export function aggregateSalesRows(rows: SalesRow[]): SalesRow[] {
