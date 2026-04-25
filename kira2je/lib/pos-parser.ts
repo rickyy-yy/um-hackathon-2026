@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import type { SalesRow } from './schemas';
+import type { SalesRow, PosColumnMapping } from './schemas';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -328,4 +328,94 @@ export async function parsePosFile(base64: string, fileName: string): Promise<Pa
     previewHeaders,
     previewRows: rawRows.slice(0, 5),
   };
+}
+
+// ─── Raw row extraction (for LLM-mapped imports) ─────────────────────────────
+
+export async function extractRawRows(base64: string, fileName: string): Promise<Record<string, unknown>[]> {
+  const buffer = Buffer.from(base64, 'base64');
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+
+  if (ext === 'csv') {
+    const text = buffer.toString('utf-8');
+    const result = Papa.parse<Record<string, unknown>>(text, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: true,
+    });
+    return result.data;
+  } else if (ext === 'xlsx' || ext === 'xls') {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  }
+  return [];
+}
+
+// ─── Row aggregation ──────────────────────────────────────────────────────────
+
+export function aggregateSalesRows(rows: SalesRow[]): SalesRow[] {
+  const map = new Map<string, { qty: number; revenue: number; category?: string; channel?: string }>();
+  for (const r of rows) {
+    const key = r.itemName;
+    const existing = map.get(key);
+    if (existing) {
+      existing.qty += r.quantity;
+      existing.revenue += r.quantity * r.unitPrice;
+    } else {
+      map.set(key, {
+        qty: r.quantity,
+        revenue: r.quantity * r.unitPrice,
+        category: r.category,
+        channel: r.channel,
+      });
+    }
+  }
+  return Array.from(map.entries()).map(([itemName, v]) => ({
+    itemName,
+    quantity: v.qty,
+    unitPrice: v.qty > 0 ? v.revenue / v.qty : 0,
+    category: v.category,
+    channel: v.channel,
+  }));
+}
+
+// ─── LLM column mapping → SalesRow[] ─────────────────────────────────────────
+
+export function mapFromColumnMapping(
+  rawRows: Record<string, unknown>[],
+  mapping: PosColumnMapping
+): { rows: SalesRow[]; warnings: string[] } {
+  const rows: SalesRow[] = [];
+  const warnings: string[] = [];
+
+  if (!mapping.itemNameCol || !mapping.quantityCol || !mapping.unitPriceCol) {
+    warnings.push('AI column mapping is incomplete — could not find item name, quantity, or price columns.');
+    return { rows, warnings };
+  }
+
+  for (const r of rawRows) {
+    const itemName = str(r[mapping.itemNameCol]);
+    if (!itemName) continue;
+    if (mapping.isRefundedCol) {
+      const refVal = r[mapping.isRefundedCol];
+      if (refVal === true || str(refVal).toLowerCase() === 'true') continue;
+    }
+    const quantity = num(r[mapping.quantityCol]);
+    const unitPrice = num(r[mapping.unitPriceCol]);
+    const date = mapping.dateCol
+      ? (excelDateToIso(r[mapping.dateCol]) ?? undefined)
+      : undefined;
+    const category = mapping.categoryCol ? str(r[mapping.categoryCol]) || undefined : undefined;
+    const channel = mapping.channelCol ? mapChannel(str(r[mapping.channelCol])) : undefined;
+    rows.push({ itemName, quantity, unitPrice, date, category, channel });
+  }
+
+  if (mapping.confidence !== 'high') {
+    warnings.push(
+      `AI detected columns with ${mapping.confidence} confidence — please verify the preview looks correct.`
+    );
+  }
+
+  return { rows, warnings };
 }

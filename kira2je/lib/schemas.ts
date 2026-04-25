@@ -187,6 +187,21 @@ export const WhatIfAnswer = z.object({
 });
 export type WhatIfAnswer = z.infer<typeof WhatIfAnswer>;
 
+// ─── POS Column Mapping (LLM-detected) ───────────────────────────────────────
+
+export const PosColumnMapping = z.object({
+  itemNameCol:   z.string().nullable(),
+  quantityCol:   z.string().nullable(),
+  unitPriceCol:  z.string().nullable(),
+  dateCol:       z.string().nullable(),
+  categoryCol:   z.string().nullable(),
+  channelCol:    z.string().nullable(),
+  isRefundedCol: z.string().nullable(),
+  isAggregated:  z.boolean(),
+  confidence:    z.enum(['high', 'medium', 'low']),
+});
+export type PosColumnMapping = z.infer<typeof PosColumnMapping>;
+
 // ─── Legacy (kept for backward compat with whatif route) ─────────────────────
 
 export const OcrExtraction = z.object({

@@ -11,6 +11,7 @@ import {
   Loader2,
   X,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { AppHeader } from '@/components/AppHeader';
@@ -30,6 +31,7 @@ type ParsePreview = {
   previewHeaders: string[];
   previewRows: Record<string, unknown>[];
   rowCount: number;
+  aiDetected?: boolean;
 };
 
 type Stage =
@@ -59,17 +61,35 @@ const SYSTEM_COLORS: Partial<Record<PosSystem, string>> = {
   'loyverse-items':        'bg-emerald-50 text-emerald-700 border-emerald-200',
   'loyverse-receipts':     'bg-emerald-50 text-emerald-700 border-emerald-200',
   'loyverse-summary':      'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'custom-itemized':       'bg-amber-50 text-amber-700 border-amber-200',
   'unknown':               'bg-paper-100 text-ink-secondary border-paper-200',
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SystemBadge({ system, label, usable }: { system: PosSystem; label: string; usable: boolean }) {
+function SystemBadge({
+  system,
+  label,
+  usable,
+  aiDetected,
+}: {
+  system: PosSystem;
+  label: string;
+  usable: boolean;
+  aiDetected?: boolean;
+}) {
   const color = SYSTEM_COLORS[system] ?? 'bg-paper-100 text-ink-secondary border-paper-200';
   return (
     <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${color}`}>
-      {usable ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+      {aiDetected ? (
+        <Sparkles className="w-3.5 h-3.5" />
+      ) : usable ? (
+        <CheckCircle className="w-3.5 h-3.5" />
+      ) : (
+        <AlertCircle className="w-3.5 h-3.5" />
+      )}
       {label}
+      {aiDetected && <span className="font-normal opacity-75">· AI detected</span>}
     </div>
   );
 }
@@ -287,6 +307,15 @@ export default function PosUploadPage() {
                 <p className="text-xs text-ink-secondary mt-1">XLSX, XLS, CSV — auto-detected</p>
               </div>
             </div>
+
+            {/* Supported formats hint */}
+            <div className="flex gap-3 px-4 py-3 rounded-btn border border-paper-200 bg-paper-50 text-xs text-ink-secondary">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <p>
+                Supported: <strong>Square</strong> (Items CSV), <strong>Loyverse</strong> (Receipts by Item),{' '}
+                <strong>StoreHub</strong> (Best Selling Products), or any spreadsheet — AI will detect the columns automatically.
+              </p>
+            </div>
           </>
         )}
 
@@ -324,18 +353,52 @@ export default function PosUploadPage() {
 
             {/* System badge */}
             <div className="flex items-center gap-3 flex-wrap">
-              <SystemBadge system={preview.system} label={preview.systemLabel} usable={preview.usable} />
+              <SystemBadge
+                system={preview.system}
+                label={preview.systemLabel}
+                usable={preview.usable}
+                aiDetected={preview.aiDetected}
+              />
               {preview.isAggregated && (
                 <span className="text-xs text-ink-secondary">Period totals · no date per row</span>
               )}
             </div>
+
+            {/* AI detected info banner */}
+            {preview.aiDetected && preview.usable && (
+              <div className="flex gap-3 px-4 py-3 rounded-btn border border-amber-200 bg-amber-50 text-amber-800 text-sm leading-relaxed">
+                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Custom format detected by AI</p>
+                  <p className="text-xs mt-0.5 opacity-80">
+                    Your file doesn&apos;t match a known POS export — AI mapped the columns automatically.
+                    Check the preview below looks correct before importing.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Unknown + no AI mapping */}
+            {preview.system === 'unknown' && !preview.aiDetected && !preview.usable && (
+              <div className="flex gap-3 px-4 py-3 rounded-btn border border-paper-200 bg-paper-50 text-ink-secondary text-sm leading-relaxed">
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-medium text-ink-primary">Format not recognised</p>
+                  <p>
+                    Try exporting from your POS as a CSV, or use the{' '}
+                    <strong>Square Items</strong>, <strong>Loyverse Receipts by Item</strong>, or{' '}
+                    <strong>StoreHub Best Selling Products</strong> report format.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* StoreHub guidance */}
             {isStoreHub && <StoreHubGuidanceCard />}
 
             {/* Warnings */}
             {preview.warnings.map((w, i) => (
-              <WarningCard key={i} text={w} isError={!preview.usable} />
+              <WarningCard key={i} text={w} isError={!preview.usable && !preview.aiDetected} />
             ))}
 
             {/* Preview table */}

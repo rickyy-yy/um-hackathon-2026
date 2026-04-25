@@ -6,6 +6,7 @@ import {
   IngredientMappingResult,
   ReportData,
   WhatIfAnswer,
+  PosColumnMapping,
 } from './schemas';
 import {
   systemPrompt,
@@ -13,6 +14,7 @@ import {
   ingredientMappingPrompt,
   reportPrompt,
   whatIfPrompt,
+  posColumnMappingPrompt,
 } from './prompts';
 import * as mocks from './mocks';
 import type { Locale } from './i18n/dictionary';
@@ -21,7 +23,8 @@ type LlmTask =
   | { task: 'invoice-ocr'; imageBase64: string; mimeType: string; locale?: Locale }
   | { task: 'ingredient-mapping'; invoiceItems: unknown[]; menuItems: string[]; savedMappings: unknown[]; locale?: Locale }
   | { task: 'report'; salesData: unknown; expenseData: unknown; mappings: unknown; historicalData: unknown; locale?: Locale }
-  | { task: 'whatif'; monthView: unknown; trendsView: unknown; question: string; locale?: Locale };
+  | { task: 'whatif'; monthView: unknown; trendsView: unknown; question: string; locale?: Locale }
+  | { task: 'pos-column-mapping'; headers: string[]; sampleRows: Record<string, unknown>[] };
 
 export type LlmResult<T extends LlmTask['task']> = T extends 'invoice-ocr'
   ? InvoiceOcrResult
@@ -31,7 +34,9 @@ export type LlmResult<T extends LlmTask['task']> = T extends 'invoice-ocr'
       ? ReportData
       : T extends 'whatif'
         ? WhatIfAnswer
-        : never;
+        : T extends 'pos-column-mapping'
+          ? PosColumnMapping
+          : never;
 
 function isMockMode(): boolean {
   return (process.env.MOCK_LLM ?? 'true').toLowerCase() === 'true' || !process.env.LLM_API_KEY;
@@ -162,13 +167,16 @@ function mockFor<T extends LlmTask>(args: T): LlmResult<T['task']> {
       return mocks.mockReportData() as LlmResult<T['task']>;
     case 'whatif':
       return mocks.mockWhatIf(args.question) as LlmResult<T['task']>;
+    case 'pos-column-mapping':
+      // No mock — this should always hit the real provider
+      throw new Error('pos-column-mapping has no mock');
     default:
       throw new Error('unreachable');
   }
 }
 
 export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task']>> {
-  const locale: Locale = args.locale ?? 'en';
+  const locale: Locale = ('locale' in args ? args.locale : undefined) ?? 'en';
 
   if (isMockMode()) {
     return mockFor(args);
@@ -242,6 +250,17 @@ async function callReal<T extends LlmTask>(args: T, locale: Locale): Promise<Llm
         'whatif'
       );
       return WhatIfAnswer.parse(raw) as LlmResult<T['task']>;
+    }
+
+    case 'pos-column-mapping': {
+      const raw = await chatJson<unknown>(
+        [
+          { role: 'system', content: sys },
+          { role: 'user', content: posColumnMappingPrompt(args.headers, args.sampleRows) },
+        ],
+        'pos-column-mapping'
+      );
+      return PosColumnMapping.parse(raw) as LlmResult<T['task']>;
     }
 
     default:

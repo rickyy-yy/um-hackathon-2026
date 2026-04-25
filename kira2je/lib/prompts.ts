@@ -146,6 +146,31 @@ Rules:
 - Use RM for all monetary values`;
 }
 
+export function posColumnMappingPrompt(headers: string[], sampleRows: Record<string, unknown>[]): string {
+  return `You are analysing a POS or sales data spreadsheet export from a Malaysian F&B business.
+
+Column headers: ${JSON.stringify(headers)}
+
+Sample rows (first ${sampleRows.length}):
+${JSON.stringify(sampleRows, null, 2)}
+
+Identify which column name contains each field. Use null if no column matches.
+"isAggregated" should be true ONLY if each row is already a totalled summary per item (not individual transactions).
+
+Return ONLY this JSON — no explanation:
+{
+  "itemNameCol":   "exact column name or null",
+  "quantityCol":   "exact column name or null",
+  "unitPriceCol":  "exact column name or null",
+  "dateCol":       "exact column name or null",
+  "categoryCol":   "exact column name or null",
+  "channelCol":    "exact column name or null",
+  "isRefundedCol": "exact column name or null",
+  "isAggregated":  false,
+  "confidence":    "high" | "medium" | "low"
+}`;
+}
+
 export function whatIfPrompt(
   monthView: unknown,
   trendsView: unknown,
