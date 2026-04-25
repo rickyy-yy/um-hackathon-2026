@@ -41,12 +41,21 @@ export async function POST(req: Request) {
       });
       count++;
     } catch (e) {
-      console.error('[photo-upload] failed for image:', (e as Error)?.message);
+      const msg = (e as Error)?.message ?? 'Unknown error';
+      console.error('[photo-upload] OCR failed:', msg);
+      // Propagate a meaningful error on first failure so the UI can show it
+      if (count === 0 && images.indexOf(img) === images.length - 1) {
+        const isGemini = msg.includes('API key') || msg.includes('expired') || msg.includes('PERMISSION_DENIED');
+        const userMsg = isGemini
+          ? 'OCR service error: Gemini API key is expired. Please update GEMINI_API_KEY in .env.local.'
+          : `OCR failed: ${msg}`;
+        return NextResponse.json({ ok: false, error: userMsg }, { status: 422 });
+      }
     }
   }
 
   if (count === 0) {
-    return NextResponse.json({ ok: false, error: 'Could not process any images' }, { status: 422 });
+    return NextResponse.json({ ok: false, error: 'Could not read any of the provided images.' }, { status: 422 });
   }
 
   return NextResponse.json({ ok: true, count });

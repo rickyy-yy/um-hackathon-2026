@@ -177,11 +177,11 @@ export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task
   try {
     return await callReal(args, locale);
   } catch (e) {
-    console.warn(
-      `[llm:${args.task}] real provider failed, falling back to mock:`,
-      (e as { status?: number })?.status ?? (e as Error)?.message ?? e
-    );
-    return mockFor(args);
+    const msg = (e as Error)?.message ?? String(e);
+    console.error(`[llm:${args.task}] real provider failed:`, msg);
+    // Don't silently fall back to mock when MOCK_LLM=false — surface the error
+    // so callers can show a real error message instead of returning stale data.
+    throw e;
   }
 }
 
