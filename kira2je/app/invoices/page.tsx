@@ -377,7 +377,12 @@ function InvoiceCard({
 
         {/* Line items */}
         <div className="space-y-2">
-          <p className="text-xs text-ink-secondary font-medium">Line items</p>
+          <div className="grid grid-cols-[1fr_56px_72px_28px] gap-1.5">
+            <p className="text-xs text-ink-secondary font-medium">Line items</p>
+            <p className="text-xs text-ink-secondary font-medium text-right">Qty</p>
+            <p className="text-xs text-ink-secondary font-medium text-right">Price (RM)</p>
+            <span />
+          </div>
           {draftItems.map((item, i) => (
             <div key={i} className="grid grid-cols-[1fr_56px_72px_28px] gap-1.5 items-center">
               <input
@@ -390,7 +395,6 @@ function InvoiceCard({
                 type="number"
                 value={item.quantity}
                 onChange={(e) => updateItem(i, 'quantity', e.target.value)}
-                placeholder="Qty"
                 className="border border-paper-200 rounded-btn px-2 py-1.5 text-xs text-ink-primary bg-paper-50 focus:outline-none focus:ring-1 focus:ring-accent-primary/30 text-right"
               />
               <input
@@ -398,7 +402,6 @@ function InvoiceCard({
                 step="0.01"
                 value={item.unitPrice}
                 onChange={(e) => updateItem(i, 'unitPrice', e.target.value)}
-                placeholder="Price"
                 className="border border-paper-200 rounded-btn px-2 py-1.5 text-xs text-ink-primary bg-paper-50 focus:outline-none focus:ring-1 focus:ring-accent-primary/30 text-right"
               />
               <button
