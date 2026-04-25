@@ -1,10 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CheckCircle, Circle, Edit2, ChevronRight, AlertTriangle, X, Check } from 'lucide-react';
+import {
+  CheckCircle,
+  Circle,
+  Edit2,
+  ChevronRight,
+  AlertTriangle,
+  X,
+  Check,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
-import { mockMappingResult } from '@/lib/mocks';
 import type { MappingProposal } from '@/lib/schemas';
 
 // ─── Confidence badge ─────────────────────────────────────────────────────────
@@ -23,8 +32,6 @@ function ConfidenceBadge({ level }: { level: 'high' | 'medium' | 'low' }) {
   );
 }
 
-// ─── Menu item chip ───────────────────────────────────────────────────────────
-
 function MenuChip({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center text-xs font-medium bg-paper-100 text-ink-primary border border-paper-200 rounded-full px-2.5 py-0.5">
@@ -33,74 +40,16 @@ function MenuChip({ label }: { label: string }) {
   );
 }
 
-// ─── Cost breakdown panel ─────────────────────────────────────────────────────
-
-function CostBreakdownPanel({ mapping }: { mapping: MappingProposal }) {
-  if (!mapping.unitCost || !mapping.portionsPerUnit || !mapping.costPerPortion) return null;
-
-  const quantityUnit = mapping.quantity?.match(/\/(\w+)/)?.[1] ?? 'unit';
-
-  return (
-    <div className="mt-2 bg-paper-50 border border-paper-200 rounded-card p-3 space-y-2">
-      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
-        <div>
-          <span className="text-ink-secondary">Unit cost: </span>
-          <span className="font-semibold text-ink-primary">RM {mapping.unitCost.toFixed(2)}/{quantityUnit}</span>
-        </div>
-        <div>
-          <span className="text-ink-secondary">Portions per unit: </span>
-          <span className="font-semibold text-ink-primary">{mapping.portionsPerUnit}</span>
-        </div>
-        <div>
-          <span className="text-ink-secondary">Cost per portion: </span>
-          <span className="font-semibold text-accent-primary">RM {mapping.costPerPortion.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {mapping.menuItemPortions && Object.keys(mapping.menuItemPortions).length > 0 && (
-        <div className="space-y-1 pt-2 border-t border-paper-200">
-          <p className="text-[10px] text-ink-secondary font-semibold uppercase tracking-wide">Ingredient cost per dish</p>
-          {Object.entries(mapping.menuItemPortions).map(([dish, portions]) => {
-            const cost = portions * (mapping.costPerPortion ?? 0);
-            return (
-              <div key={dish} className="flex items-center justify-between gap-2">
-                <span className="text-xs text-ink-primary">{dish}</span>
-                <span className="text-xs text-ink-secondary number whitespace-nowrap">
-                  {portions} × RM {mapping.costPerPortion?.toFixed(2)} ={' '}
-                  <span className="font-semibold text-ink-primary">RM {cost.toFixed(2)}</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Inline edit panel ────────────────────────────────────────────────────────
-
-const ALL_MENU_ITEMS = [
-  'Grilled Chicken Set',
-  'Chicken Rice',
-  'Chicken Chop',
-  'Nasi Goreng Kampung',
-  'Nasi Lemak',
-  'Mee Goreng',
-  'Laksa',
-  'Set Breakfast',
-  'Teh Tarik',
-  'Milo Dinosaur',
-  'Sirap',
-  'Takeaway orders',
-];
 
 function InlineEdit({
   current,
+  options,
   onSave,
   onCancel,
 }: {
   current: string[];
+  options: string[];
   onSave: (items: string[]) => void;
   onCancel: () => void;
 }) {
@@ -115,11 +64,13 @@ function InlineEdit({
     });
   }
 
+  const allOptions = [...new Set([...options, ...current])].sort();
+
   return (
     <div className="mt-3 bg-paper-100 border border-paper-200 rounded-card p-4 space-y-3">
       <p className="section-label">Select menu items</p>
       <div className="flex flex-wrap gap-2">
-        {ALL_MENU_ITEMS.map((item) => {
+        {allOptions.map((item) => {
           const active = selected.has(item);
           return (
             <button
@@ -144,10 +95,7 @@ function InlineEdit({
         >
           Save
         </button>
-        <button
-          onClick={onCancel}
-          className="btn-secondary text-sm px-4 py-2 min-h-0"
-        >
+        <button onClick={onCancel} className="btn-secondary text-sm px-4 py-2 min-h-0">
           Cancel
         </button>
       </div>
@@ -160,26 +108,21 @@ function InlineEdit({
 function MappingRow({
   mapping,
   confirmed,
+  menuOptions,
   onConfirm,
   onUpdateMenuItems,
 }: {
   mapping: MappingProposal;
   confirmed: boolean;
+  menuOptions: string[];
   onConfirm: () => void;
   onUpdateMenuItems: (items: string[]) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [showCost, setShowCost] = useState(false);
-  const hasCostData = !!(mapping.unitCost && mapping.portionsPerUnit);
 
   return (
-    <div
-      className={`card transition-colors ${
-        confirmed ? 'border-accent-secondary/40 bg-paper-50' : ''
-      }`}
-    >
+    <div className={`card transition-colors ${confirmed ? 'border-accent-secondary/40 bg-paper-50' : ''}`}>
       <div className="flex items-start gap-3">
-        {/* Confirm toggle */}
         <button
           onClick={onConfirm}
           className="mt-0.5 shrink-0 text-ink-secondary hover:text-accent-secondary transition-colors"
@@ -192,18 +135,14 @@ function MappingRow({
           )}
         </button>
 
-        {/* Main content */}
         <div className="flex-1 min-w-0 space-y-2">
-          {/* Top row: ingredient + confidence + edit */}
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div className="min-w-0">
               <div className="font-semibold text-ink-primary text-sm leading-tight">
                 {mapping.ingredient}
               </div>
               <div className="text-xs text-ink-secondary mt-0.5">
-                {mapping.supplier && (
-                  <span className="mr-2">{mapping.supplier}</span>
-                )}
+                {mapping.supplier && <span className="mr-2">{mapping.supplier}</span>}
                 {mapping.quantity && (
                   <span className="font-medium text-ink-primary">{mapping.quantity}</span>
                 )}
@@ -221,39 +160,20 @@ function MappingRow({
             </div>
           </div>
 
-          {/* Menu items chips */}
           {!editing && (
             <div className="flex flex-wrap gap-1.5">
               {mapping.menuItems.length > 0 ? (
-                mapping.menuItems.map((item) => (
-                  <MenuChip key={item} label={item} />
-                ))
+                mapping.menuItems.map((item) => <MenuChip key={item} label={item} />)
               ) : (
                 <span className="text-xs text-ink-secondary italic">No menu items assigned</span>
               )}
             </div>
           )}
 
-          {/* Cost breakdown toggle */}
-          {hasCostData && !editing && (
-            <button
-              onClick={() => setShowCost((v) => !v)}
-              className="flex items-center gap-1 text-xs text-accent-primary hover:text-accent-primary/75 transition-colors mt-0.5"
-            >
-              <ChevronRight
-                size={12}
-                className={`transition-transform duration-200 ${showCost ? 'rotate-90' : ''}`}
-              />
-              {showCost ? 'Hide cost breakdown' : 'Show cost per dish'}
-            </button>
-          )}
-
-          {showCost && !editing && <CostBreakdownPanel mapping={mapping} />}
-
-          {/* Inline edit */}
           {editing && (
             <InlineEdit
               current={mapping.menuItems}
+              options={menuOptions}
               onSave={(items) => {
                 onUpdateMenuItems(items);
                 setEditing(false);
@@ -269,41 +189,156 @@ function MappingRow({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function MappingPage() {
-  const initial = mockMappingResult();
+type ApiData = {
+  proposals: MappingProposal[];
+  confirmedIngredients: string[];
+  unmappedIngredients: string[];
+  unmappedMenuItems: string[];
+  menuItems: string[];
+  hasInvoices: boolean;
+  hasPos: boolean;
+};
 
-  const [mappings, setMappings] = useState<MappingProposal[]>(initial.mappings);
-  const [confirmed, setConfirmed] = useState<boolean[]>(
-    () => initial.mappings.map(() => false)
-  );
-  const [allConfirmed, setAllConfirmed] = useState(false);
+export default function MappingPage() {
+  const [data, setData] = useState<ApiData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
-  function toggleConfirm(i: number) {
-    setConfirmed((prev) => {
-      const next = [...prev];
-      next[i] = !next[i];
-      return next;
-    });
+  const [mappings, setMappings] = useState<MappingProposal[]>([]);
+  const [confirmed, setConfirmed] = useState<boolean[]>([]);
+
+  async function fetchMappings() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/mapping');
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? 'Failed to load mappings.');
+        return;
+      }
+      const d = json as ApiData;
+      setData(d);
+      setMappings(d.proposals);
+      const confirmedSet = new Set(d.confirmedIngredients);
+      setConfirmed(d.proposals.map((p) => confirmedSet.has(p.ingredient)));
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function confirmAll() {
+  useEffect(() => { fetchMappings(); }, []);
+
+  function toggleConfirm(i: number) {
+    setConfirmed((prev) => { const n = [...prev]; n[i] = !n[i]; return n; });
+  }
+
+  async function saveConfirmed(confirmedMappings: MappingProposal[]) {
+    setSaving(true);
+    try {
+      await fetch('/api/mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mappings: confirmedMappings.map((m) => ({
+            ingredient: m.ingredient,
+            supplier: m.supplier,
+            menuItems: m.menuItems,
+          })),
+        }),
+      });
+    } catch {
+      // non-blocking — UI still shows toast
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmAll() {
     setConfirmed(mappings.map(() => true));
-    setAllConfirmed(true);
     setShowToast(true);
+    await saveConfirmed(mappings);
   }
 
   function updateMenuItems(i: number, items: string[]) {
     setMappings((prev) => {
-      const next = [...prev];
-      next[i] = { ...next[i], menuItems: items };
-      return next;
+      const n = [...prev];
+      n[i] = { ...n[i], menuItems: items };
+      return n;
     });
   }
 
   const confirmedCount = confirmed.filter(Boolean).length;
+  const allConfirmed = mappings.length > 0 && confirmedCount === mappings.length;
+
+  // ── Loading ─────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-paper-100">
+        <AppHeader title="Ingredient Mapping" backHref="/dashboard" />
+        <div className="flex-1 flex items-center justify-center gap-3 text-ink-secondary">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <p className="text-sm">Matching your invoices to menu items…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error ───────────────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-paper-100">
+        <AppHeader title="Ingredient Mapping" backHref="/dashboard" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-5">
+          <p className="text-sm text-danger">{error}</p>
+          <button onClick={fetchMappings} className="btn-secondary flex items-center gap-2">
+            <RefreshCw size={14} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── No invoices or POS ──────────────────────────────────────────────────────
+  if (data && (!data.hasInvoices || !data.hasPos)) {
+    return (
+      <div className="min-h-screen flex flex-col bg-paper-100">
+        <AppHeader title="Ingredient Mapping" backHref="/dashboard" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-5 text-center max-w-sm mx-auto">
+          <AlertTriangle size={32} className="text-amber-500" />
+          <p className="font-medium text-ink-primary">
+            {!data.hasInvoices && !data.hasPos
+              ? 'Upload invoices and POS data first'
+              : !data.hasInvoices
+              ? 'No confirmed invoices for April'
+              : 'No POS sales data for April'}
+          </p>
+          <p className="text-sm text-ink-secondary">
+            {!data.hasInvoices
+              ? 'Confirm at least one invoice so we know what ingredients you bought.'
+              : 'Upload your POS export so we know which menu items to map to.'}
+          </p>
+          <div className="flex gap-3">
+            {!data.hasInvoices && (
+              <Link href="/invoices" className="btn-primary text-sm">Go to Invoices</Link>
+            )}
+            {!data.hasPos && (
+              <Link href="/upload/pos" className="btn-primary text-sm">Upload POS Data</Link>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const menuOptions = data?.menuItems ?? [];
   const hasUnmatched =
-    initial.unmappedIngredients.length > 0 || initial.unmappedMenuItems.length > 0;
+    (data?.unmappedIngredients.length ?? 0) > 0 ||
+    (data?.unmappedMenuItems.length ?? 0) > 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-paper-100">
@@ -316,7 +351,7 @@ export default function MappingPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
 
-          {/* Subtitle + actions */}
+          {/* Header row */}
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <p className="text-sm text-ink-secondary max-w-lg leading-relaxed">
               Correct any mistakes — these are saved and reused next month.
@@ -327,9 +362,10 @@ export default function MappingPage() {
               </span>
               <button
                 onClick={confirmAll}
-                className="btn-primary text-sm px-4 py-2.5 min-h-0 flex items-center gap-1.5"
+                disabled={saving}
+                className="btn-primary text-sm px-4 py-2.5 min-h-0 flex items-center gap-1.5 disabled:opacity-50"
               >
-                <CheckCircle size={15} />
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={15} />}
                 Confirm all
               </button>
             </div>
@@ -349,8 +385,7 @@ export default function MappingPage() {
                   href="/report/generate"
                   className="btn-primary text-xs px-3 py-1.5 min-h-0 inline-flex items-center gap-1"
                 >
-                  Generate report
-                  <ChevronRight size={13} />
+                  Generate report <ChevronRight size={13} />
                 </Link>
                 <button
                   onClick={() => setShowToast(false)}
@@ -363,56 +398,51 @@ export default function MappingPage() {
           )}
 
           {/* Mapping rows */}
-          <div className="space-y-3">
-            <p className="section-label">Matched ingredients ({mappings.length})</p>
-            {mappings.map((m, i) => (
-              <MappingRow
-                key={m.ingredient}
-                mapping={m}
-                confirmed={confirmed[i]}
-                onConfirm={() => toggleConfirm(i)}
-                onUpdateMenuItems={(items) => updateMenuItems(i, items)}
-              />
-            ))}
-          </div>
+          {mappings.length > 0 && (
+            <div className="space-y-3">
+              <p className="section-label">Matched ingredients ({mappings.length})</p>
+              {mappings.map((m, i) => (
+                <MappingRow
+                  key={m.ingredient}
+                  mapping={m}
+                  confirmed={confirmed[i] ?? false}
+                  menuOptions={menuOptions}
+                  onConfirm={() => toggleConfirm(i)}
+                  onUpdateMenuItems={(items) => updateMenuItems(i, items)}
+                />
+              ))}
+            </div>
+          )}
 
-          {/* Unmatched section */}
+          {/* Unmatched */}
           {hasUnmatched && (
             <div className="space-y-3">
               <p className="section-label flex items-center gap-1.5">
                 <AlertTriangle size={13} className="text-amber-600" />
                 Unmatched
               </p>
-
-              {initial.unmappedIngredients.length > 0 && (
+              {(data?.unmappedIngredients.length ?? 0) > 0 && (
                 <div className="card">
                   <p className="text-xs font-semibold text-ink-secondary mb-2">
                     Ingredients without menu match
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {initial.unmappedIngredients.map((ing) => (
-                      <span
-                        key={ing}
-                        className="inline-flex items-center text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1"
-                      >
+                    {data!.unmappedIngredients.map((ing) => (
+                      <span key={ing} className="inline-flex items-center text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1">
                         {ing}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
-
-              {initial.unmappedMenuItems.length > 0 && (
+              {(data?.unmappedMenuItems.length ?? 0) > 0 && (
                 <div className="card">
                   <p className="text-xs font-semibold text-ink-secondary mb-2">
                     Menu items without ingredient data
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {initial.unmappedMenuItems.map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center text-xs font-medium bg-danger/10 text-danger border border-danger/20 rounded-full px-3 py-1"
-                      >
+                    {data!.unmappedMenuItems.map((item) => (
+                      <span key={item} className="inline-flex items-center text-xs font-medium bg-danger/10 text-danger border border-danger/20 rounded-full px-3 py-1">
                         {item}
                       </span>
                     ))}
@@ -422,19 +452,26 @@ export default function MappingPage() {
             </div>
           )}
 
-          {/* Bottom action */}
+          {/* Regenerate */}
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={fetchMappings}
+              className="flex items-center gap-2 text-xs text-ink-secondary hover:text-ink-primary transition-colors"
+            >
+              <RefreshCw size={12} /> Re-run AI mapping
+            </button>
+          </div>
+
           {allConfirmed && (
             <div className="pt-2">
               <Link
                 href="/report/generate"
                 className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
               >
-                Generate report
-                <ChevronRight size={16} />
+                Generate report <ChevronRight size={16} />
               </Link>
             </div>
           )}
-
         </div>
       </div>
     </div>
