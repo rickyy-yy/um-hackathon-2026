@@ -20,7 +20,7 @@ This Drive folder should include:
 - Pitch Deck.pdf
 - Pitch Video.mp4
 
-**Alternatively, the documents can be found in the /documents directory within this repository.**
+**Alternatively, all the documents except the Pitch Video.mp4 can be found in the /documents directory within this repository.**
 
 ---
 
