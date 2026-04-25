@@ -74,7 +74,7 @@ function KiraLogo({ className = 'text-5xl' }: { className?: string }) {
 
 function TealHeader({ children }: { children?: React.ReactNode }) {
   return (
-    <div className="relative overflow-hidden bg-kira-teal flex flex-col items-center justify-center text-center px-10 py-10">
+    <div className="relative overflow-hidden bg-accent-primary flex flex-col items-center justify-center text-center px-10 py-10">
       <DiamondPattern />
       <div className="relative z-10">
         <p className="text-white/45 text-[10px] tracking-[0.35em] uppercase font-semibold mb-3">
@@ -88,7 +88,7 @@ function TealHeader({ children }: { children?: React.ReactNode }) {
 
 function ReceiptIllustration() {
   return (
-    <svg viewBox="0 0 56 72" fill="none" className="w-10 h-14 text-kira-muted/30">
+    <svg viewBox="0 0 56 72" fill="none" className="w-10 h-14 text-ink-secondary/30">
       <path d="M8 4H48V64L44 60L40 64L36 60L32 64L28 60L24 64L20 60L16 64L12 60L8 64Z"
         stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
       <line x1="16" y1="18" x2="40" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -101,7 +101,7 @@ function ReceiptIllustration() {
 
 function BarChartIllustration() {
   return (
-    <svg viewBox="0 0 72 56" fill="none" className="w-14 h-10 text-kira-muted/30">
+    <svg viewBox="0 0 72 56" fill="none" className="w-14 h-10 text-ink-secondary/30">
       <line x1="8" y1="48" x2="64" y2="48" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <line x1="8" y1="10" x2="8" y2="48" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <rect x="13" y="28" width="11" height="20" rx="2" stroke="currentColor" strokeWidth="1.5" />
@@ -182,7 +182,7 @@ export default function LoginPage() {
 
       {/* ── MOBILE: cream form sheet ── */}
       <motion.div
-        className="lg:hidden flex-1 bg-kira-cream rounded-t-3xl -mt-5 px-6 pt-10 pb-8 flex flex-col"
+        className="lg:hidden flex-1 bg-paper-50 rounded-t-3xl -mt-5 px-6 pt-10 pb-8 flex flex-col"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25, duration: 0.45, ease: 'easeOut' }}
@@ -193,15 +193,15 @@ export default function LoginPage() {
               initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25 }}
             >
-              <h2 className="serif text-2xl text-kira-dark mb-1 min-h-[2rem]">
+              <h2 className="serif text-2xl text-ink-primary mb-1 min-h-[2rem]">
                 {greeting}
                 <span className={`ml-0.5 ${settled ? 'invisible' : 'animate-cursor'}`}>|</span>
               </h2>
-              <p className="text-sm text-kira-muted mb-5">
+              <p className="text-sm text-ink-secondary mb-5">
                 Masukkan nombor telefon anda. Kami akan hantar kod 6 digit.
               </p>
               <div className="flex items-center gap-2 mb-5">
-                <div className="bg-kira-sage/50 rounded-btn px-4 py-3 font-semibold text-kira-dark shrink-0">+60</div>
+                <div className="bg-paper-200/50 rounded-btn px-4 py-3 font-semibold text-ink-primary shrink-0">+60</div>
                 <input value={phone} onChange={(e) => setPhone(e.target.value)}
                   inputMode="tel" className="input flex-1 bg-white" placeholder="12-345 6789" />
               </div>
@@ -215,8 +215,8 @@ export default function LoginPage() {
               initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 16 }} transition={{ duration: 0.25 }}
             >
-              <h2 className="serif text-2xl text-kira-dark mb-1">{t('login.otpLabel')}</h2>
-              <p className="text-sm text-kira-muted mb-5">{t('login.otpHint')}</p>
+              <h2 className="serif text-2xl text-ink-primary mb-1">{t('login.otpLabel')}</h2>
+              <p className="text-sm text-ink-secondary mb-5">{t('login.otpHint')}</p>
               <input value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 onPaste={(e) => {
@@ -231,7 +231,7 @@ export default function LoginPage() {
                 {loading ? 'Menyemak...' : t('login.submit')}
               </motion.button>
               <button onClick={() => { setStage('phone'); setOtp(''); }}
-                className="w-full text-sm text-kira-muted underline">
+                className="w-full text-sm text-ink-secondary underline">
                 {t('login.changeNumber')}
               </button>
             </motion.div>
@@ -240,7 +240,7 @@ export default function LoginPage() {
 
         <div className="mt-auto pt-8">
           <Illustrations />
-          <p className="mt-4 text-center text-xs text-kira-muted">
+          <p className="mt-4 text-center text-xs text-ink-secondary">
             Untuk bisnes F&amp;B kecil di Malaysia
           </p>
         </div>
@@ -248,7 +248,7 @@ export default function LoginPage() {
 
       {/* ── DESKTOP: teal left panel ── */}
       <motion.div
-        className="hidden lg:flex relative overflow-hidden lg:flex-1 flex-col items-center justify-center bg-kira-teal px-16 py-20"
+        className="hidden lg:flex relative overflow-hidden lg:flex-1 flex-col items-center justify-center bg-accent-primary px-16 py-20"
         initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -268,7 +268,7 @@ export default function LoginPage() {
       </motion.div>
 
       {/* ── DESKTOP: right cream form panel ── */}
-      <div className="hidden lg:flex lg:flex-none lg:w-[480px] bg-kira-cream flex-col items-center justify-center px-12">
+      <div className="hidden lg:flex lg:flex-none lg:w-[480px] bg-paper-50 flex-col items-center justify-center px-12">
         <div className="w-full max-w-sm">
           <AnimatePresence mode="wait">
             {stage === 'phone' ? (
@@ -276,15 +276,15 @@ export default function LoginPage() {
                 initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.3 }}
               >
-                <h2 className="serif text-2xl text-kira-dark mb-1 min-h-[2rem]">
+                <h2 className="serif text-2xl text-ink-primary mb-1 min-h-[2rem]">
                   {greeting}
                   <span className={`ml-0.5 ${settled ? 'invisible' : 'animate-cursor'}`}>|</span>
                 </h2>
-                <p className="text-sm text-kira-muted mb-5">
+                <p className="text-sm text-ink-secondary mb-5">
                   Masukkan nombor telefon anda. Kami akan hantar kod 6 digit.
                 </p>
                 <div className="flex items-center gap-2 mb-5">
-                  <div className="bg-kira-sage/50 rounded-btn px-4 py-3 font-semibold text-kira-dark shrink-0">+60</div>
+                  <div className="bg-paper-200/50 rounded-btn px-4 py-3 font-semibold text-ink-primary shrink-0">+60</div>
                   <input value={phone} onChange={(e) => setPhone(e.target.value)}
                     inputMode="tel" className="input flex-1" placeholder="12-345 6789" />
                 </div>
@@ -298,8 +298,8 @@ export default function LoginPage() {
                 initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 24 }} transition={{ duration: 0.3 }}
               >
-                <h2 className="serif text-2xl text-kira-dark mb-1">{t('login.otpLabel')}</h2>
-                <p className="text-sm text-kira-muted mb-5">{t('login.otpHint')}</p>
+                <h2 className="serif text-2xl text-ink-primary mb-1">{t('login.otpLabel')}</h2>
+                <p className="text-sm text-ink-secondary mb-5">{t('login.otpHint')}</p>
                 <input value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   onPaste={(e) => {
@@ -314,7 +314,7 @@ export default function LoginPage() {
                   {loading ? 'Menyemak...' : t('login.submit')}
                 </motion.button>
                 <button onClick={() => { setStage('phone'); setOtp(''); }}
-                  className="w-full text-sm text-kira-muted underline">
+                  className="w-full text-sm text-ink-secondary underline">
                   {t('login.changeNumber')}
                 </button>
               </motion.div>
@@ -323,7 +323,7 @@ export default function LoginPage() {
 
           <div className="mt-8">
             <Illustrations />
-            <p className="mt-4 text-center text-xs text-kira-muted">
+            <p className="mt-4 text-center text-xs text-ink-secondary">
               Untuk bisnes F&amp;B kecil di Malaysia
             </p>
           </div>

@@ -2,35 +2,33 @@ import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
 import { createWorker } from 'tesseract.js';
 import {
-  AnalyticsResult,
-  FullReport,
-  OcrExtraction,
-  FollowupTurn,
-  ReportNarration,
+  InvoiceOcrResult,
+  IngredientMappingResult,
+  ReportData,
   WhatIfAnswer,
 } from './schemas';
 import {
-  ocrPrompt,
-  followupPrompt,
+  systemPrompt,
+  invoiceOcrPrompt,
+  ingredientMappingPrompt,
   reportPrompt,
   whatIfPrompt,
-  systemPrompt,
 } from './prompts';
 import * as mocks from './mocks';
 import type { Locale } from './i18n/dictionary';
 
 type LlmTask =
-  | { task: 'ocr'; imageBase64: string; mimeType: string; locale?: Locale }
-  | { task: 'followup'; turnIndex: number; extracted: unknown; askedSoFar: string[]; locale?: Locale }
-  | { task: 'report'; analytics: AnalyticsResult; locale?: Locale }
-  | { task: 'whatif'; report: FullReport; question: string; locale?: Locale };
+  | { task: 'invoice-ocr'; imageBase64: string; mimeType: string; locale?: Locale }
+  | { task: 'ingredient-mapping'; invoiceItems: unknown[]; menuItems: string[]; savedMappings: unknown[]; locale?: Locale }
+  | { task: 'report'; salesData: unknown; expenseData: unknown; mappings: unknown; historicalData: unknown; locale?: Locale }
+  | { task: 'whatif'; monthView: unknown; trendsView: unknown; question: string; locale?: Locale };
 
-export type LlmResult<T extends LlmTask['task']> = T extends 'ocr'
-  ? OcrExtraction
-  : T extends 'followup'
-    ? FollowupTurn
+export type LlmResult<T extends LlmTask['task']> = T extends 'invoice-ocr'
+  ? InvoiceOcrResult
+  : T extends 'ingredient-mapping'
+    ? IngredientMappingResult
     : T extends 'report'
-      ? ReportNarration
+      ? ReportData
       : T extends 'whatif'
         ? WhatIfAnswer
         : never;
@@ -50,20 +48,14 @@ function getClient(): OpenAI {
   return client;
 }
 
-async function callGeminiModel(
-  model: string,
-  imageBase64: string,
-  mimeType: string
-): Promise<string> {
+async function callGeminiModel(model: string, imageBase64: string, mimeType: string): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
   const response = await ai.models.generateContent({
     model,
     contents: [
       {
         parts: [
-          {
-            text: 'Describe all text, numbers, dates, and table data visible in this handwritten Malaysian F&B stall sales record. Be specific — include every item name, quantity, unit price, and date you can read.',
-          },
+          { text: 'Describe all text, numbers, dates, supplier names, and line items visible in this invoice or receipt. Be specific — include every item description, quantity, unit, price, and total you can read.' },
           { inlineData: { mimeType, data: imageBase64 } },
         ],
       },
@@ -76,29 +68,15 @@ async function callGeminiModel(
 
 async function describeWithGemini(imageBase64: string, mimeType: string): Promise<string> {
   const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  // Fallback chain: primary → lite variant (less traffic) → give up
-  const fallbackModels = primaryModel === 'gemini-2.5-flash'
-    ? ['gemini-2.5-flash-lite']
-    : [];
-
+  const fallbackModels = primaryModel === 'gemini-2.5-flash' ? ['gemini-2.5-flash-lite'] : [];
   try {
-    return await withRetry(
-      () => callGeminiModel(primaryModel, imageBase64, mimeType),
-      `gemini-${primaryModel}`,
-      3
-    );
+    return await withRetry(() => callGeminiModel(primaryModel, imageBase64, mimeType), `gemini-${primaryModel}`, 3);
   } catch (primaryErr) {
     for (const fallback of fallbackModels) {
       console.warn(`[llm:ocr-gemini] primary failed, trying ${fallback}:`, (primaryErr as Error)?.message);
       try {
-        return await withRetry(
-          () => callGeminiModel(fallback, imageBase64, mimeType),
-          `gemini-${fallback}`,
-          2
-        );
-      } catch {
-        // try next fallback
-      }
+        return await withRetry(() => callGeminiModel(fallback, imageBase64, mimeType), `gemini-${fallback}`, 2);
+      } catch { /* try next */ }
     }
     throw primaryErr;
   }
@@ -126,26 +104,14 @@ async function runTesseract(buf: Buffer): Promise<{ text: string; confidence: nu
 }
 
 async function describeWithTesseract(imageBase64: string): Promise<{ text: string; confidence: number }> {
-  // Try original and 90° rotation (the two most common phone photo orientations).
-  // Greyscale + contrast preprocessing improves recognition on handwritten text.
-  const [orig, rot90] = await Promise.all([
-    preprocessImage(imageBase64, 0),
-    preprocessImage(imageBase64, 90),
-  ]);
-  const [r0, r90] = await Promise.all([
-    runTesseract(orig),
-    runTesseract(rot90),
-  ]);
+  const [orig, rot90] = await Promise.all([preprocessImage(imageBase64, 0), preprocessImage(imageBase64, 90)]);
+  const [r0, r90] = await Promise.all([runTesseract(orig), runTesseract(rot90)]);
   const best = r0.confidence >= r90.confidence ? r0 : r90;
   console.warn(`[llm:tesseract] confidence: 0°=${r0.confidence.toFixed(0)}% 90°=${r90.confidence.toFixed(0)}% — using ${r0.confidence >= r90.confidence ? '0°' : '90°'}`);
   return best;
 }
 
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  label: string,
-  maxAttempts = 2
-): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, label: string, maxAttempts = 2): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -153,8 +119,7 @@ async function withRetry<T>(
     } catch (e: unknown) {
       lastErr = e;
       const status = (e as { status?: number })?.status;
-      const retryable =
-        status === 429 || (typeof status === 'number' && status >= 500 && status < 600);
+      const retryable = status === 429 || (typeof status === 'number' && status >= 500 && status < 600);
       if (!retryable || attempt === maxAttempts) {
         console.warn(`[llm:${label}] giving up after attempt ${attempt}:`, status ?? e);
         throw e;
@@ -174,126 +139,111 @@ function extractJson(content: string): unknown {
   return JSON.parse(trimmed);
 }
 
-async function chatJson<T>(
-  messages: OpenAI.Chat.ChatCompletionMessageParam[],
-  label: string
-): Promise<T> {
+async function chatJson<T>(messages: OpenAI.Chat.ChatCompletionMessageParam[], label: string): Promise<T> {
   const resp = await withRetry(
-    () =>
-      getClient().chat.completions.create({
-        model: process.env.LLM_MODEL || 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages,
-      }),
+    () => getClient().chat.completions.create({
+      model: process.env.LLM_MODEL || 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages,
+    }),
     label
   );
   const content = resp.choices[0]?.message?.content ?? '{}';
   return extractJson(content) as T;
 }
 
-function mockFor<T extends LlmTask>(args: T, locale: Locale): LlmResult<T['task']> {
+function mockFor<T extends LlmTask>(args: T): LlmResult<T['task']> {
   switch (args.task) {
-    case 'ocr':
-      return mocks.mockOcr() as LlmResult<T['task']>;
-    case 'followup':
-      return mocks.mockFollowup(args.turnIndex, locale) as LlmResult<T['task']>;
+    case 'invoice-ocr':
+      return mocks.mockInvoiceOcr() as LlmResult<T['task']>;
+    case 'ingredient-mapping':
+      return mocks.mockMappingResult() as LlmResult<T['task']>;
     case 'report':
-      return mocks.mockReport(args.analytics, locale) as LlmResult<T['task']>;
+      return mocks.mockReportData() as LlmResult<T['task']>;
     case 'whatif':
-      return mocks.mockWhatIf(args.question, args.report, locale) as LlmResult<T['task']>;
+      return mocks.mockWhatIf(args.question) as LlmResult<T['task']>;
     default:
       throw new Error('unreachable');
   }
 }
 
 export async function llm<T extends LlmTask>(args: T): Promise<LlmResult<T['task']>> {
-  const locale: Locale = args.locale ?? 'ms';
+  const locale: Locale = args.locale ?? 'en';
 
   if (isMockMode()) {
-    return mockFor(args, locale);
+    return mockFor(args);
   }
 
   try {
     return await callReal(args, locale);
   } catch (e) {
-    // Fall back to mock rather than crash the UI when the real provider is
-    // misconfigured, auth-rejected, or otherwise unavailable. Log loudly so
-    // the problem is visible in server logs.
     console.warn(
       `[llm:${args.task}] real provider failed, falling back to mock:`,
       (e as { status?: number })?.status ?? (e as Error)?.message ?? e
     );
-    return mockFor(args, locale);
+    return mockFor(args);
   }
 }
 
-async function callReal<T extends LlmTask>(
-  args: T,
-  locale: Locale
-): Promise<LlmResult<T['task']>> {
-  const systemMsg = systemPrompt(locale);
+async function callReal<T extends LlmTask>(args: T, locale: Locale): Promise<LlmResult<T['task']>> {
+  const sys = systemPrompt(locale);
 
   switch (args.task) {
-    case 'ocr': {
-      // Step 1: extract text from image — Gemini primary, tesseract.js fallback
+    case 'invoice-ocr': {
       let imageText: string;
       let tesseractConfidence: number | null = null;
       try {
         imageText = await describeWithGemini(args.imageBase64, args.mimeType);
-      } catch (geminiErr) {
-        console.warn(
-          '[llm:ocr-gemini] Gemini failed, falling back to tesseract.js:',
-          (geminiErr as Error)?.message ?? geminiErr
-        );
+      } catch (err) {
+        console.warn('[llm:invoice-ocr] Gemini failed, falling back to tesseract:', (err as Error)?.message);
         const tResult = await describeWithTesseract(args.imageBase64);
         imageText = tResult.text;
         tesseractConfidence = tResult.confidence;
       }
+      const isNoisy = tesseractConfidence !== null && tesseractConfidence < 60;
+      const raw = await chatJson<unknown>(
+        [
+          { role: 'system', content: sys },
+          { role: 'user', content: `${invoiceOcrPrompt(locale, isNoisy)}\n\nInvoice content:\n${imageText}` },
+        ],
+        'invoice-ocr'
+      );
+      return InvoiceOcrResult.parse(raw) as LlmResult<T['task']>;
+    }
 
-      // Step 2: GLM-5.1 extracts structured JSON from the text
-      const isNoisyOcr = tesseractConfidence !== null && tesseractConfidence < 60;
+    case 'ingredient-mapping': {
       const raw = await chatJson<unknown>(
         [
-          { role: 'system', content: systemMsg },
-          {
-            role: 'user',
-            content: `${ocrPrompt(locale, isNoisyOcr)}\n\nImage content:\n${imageText}`,
-          },
+          { role: 'system', content: sys },
+          { role: 'user', content: ingredientMappingPrompt(args.invoiceItems, args.menuItems, args.savedMappings, locale) },
         ],
-        'ocr'
+        'ingredient-mapping'
       );
-      return OcrExtraction.parse(raw) as LlmResult<T['task']>;
+      return IngredientMappingResult.parse(raw) as LlmResult<T['task']>;
     }
-    case 'followup': {
-      const raw = await chatJson<unknown>(
-        [
-          { role: 'system', content: systemMsg },
-          { role: 'user', content: followupPrompt(args.extracted, args.askedSoFar, locale) },
-        ],
-        'followup'
-      );
-      return FollowupTurn.parse(raw) as LlmResult<T['task']>;
-    }
+
     case 'report': {
       const raw = await chatJson<unknown>(
         [
-          { role: 'system', content: systemMsg },
-          { role: 'user', content: reportPrompt(args.analytics, locale) },
+          { role: 'system', content: sys },
+          { role: 'user', content: reportPrompt(args.salesData, args.expenseData, args.mappings, args.historicalData, locale) },
         ],
         'report'
       );
-      return ReportNarration.parse(raw) as LlmResult<T['task']>;
+      return ReportData.parse(raw) as LlmResult<T['task']>;
     }
+
     case 'whatif': {
       const raw = await chatJson<unknown>(
         [
-          { role: 'system', content: systemMsg },
-          { role: 'user', content: whatIfPrompt(args.report, args.question, locale) },
+          { role: 'system', content: sys },
+          { role: 'user', content: whatIfPrompt(args.monthView, args.trendsView, args.question, locale) },
         ],
         'whatif'
       );
       return WhatIfAnswer.parse(raw) as LlmResult<T['task']>;
     }
+
     default:
       throw new Error('unreachable');
   }

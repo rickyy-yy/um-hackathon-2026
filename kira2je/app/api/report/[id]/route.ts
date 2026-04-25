@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { llm } from '@/lib/llm';
-import { getLocale } from '@/lib/i18n/server';
-import { AnalyticsResult, FullReport } from '@/lib/schemas';
-import type { Locale } from '@/lib/i18n/dictionary';
+import { mockReportData } from '@/lib/mocks';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getSession();
@@ -12,30 +9,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const report = await prisma.report.findUnique({ where: { id: params.id } });
   if (!report || report.userId !== session.userId) {
-    return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
+    // Demo fallback
+    const mock = mockReportData('2026-04');
+    return NextResponse.json({ ok: true, report: { month: '2026-04', ...mock }, isMock: true });
   }
 
-  const locale = await getLocale();
-  const parsed = JSON.parse(report.reportData) as {
-    analytics: AnalyticsResult;
-    narration: unknown;
-    narrationLocale?: Locale;
-  };
-  let narration = parsed.narration;
-  if (!narration || parsed.narrationLocale !== locale) {
-    narration = await llm({ task: 'report', analytics: parsed.analytics, locale });
-    await prisma.report.update({
-      where: { id: report.id },
-      data: {
-        reportData: JSON.stringify({
-          analytics: parsed.analytics,
-          narration,
-          narrationLocale: locale,
-        }),
-      },
-    });
-  }
+  const monthView = typeof report.monthView === 'string'
+    ? JSON.parse(report.monthView)
+    : report.monthView;
+  const trendsView = typeof report.trendsView === 'string'
+    ? JSON.parse(report.trendsView)
+    : report.trendsView;
 
-  const full: FullReport = { analytics: parsed.analytics, narration: narration as FullReport['narration'] };
-  return NextResponse.json({ ok: true, report: full });
+  return NextResponse.json({ ok: true, report: { id: report.id, month: report.month, monthView, trendsView } });
 }

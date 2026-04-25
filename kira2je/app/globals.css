@@ -12,53 +12,65 @@
 
 @layer base {
   html {
-    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-family: 'Inter', 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   body {
-    background: #F3E9D2;
-    color: #1A2E28;
+    background: #F6F1EA;
+    color: #2C2418;
     min-height: 100vh;
   }
-  h1, h2, h3, .serif {
-    font-family: Georgia, 'Playfair Display', serif;
+  h1, h2, h3 {
     letter-spacing: -0.01em;
   }
   button, a.btn {
     min-height: 48px;
   }
+  /* Tabular figures for financial numbers */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-card p-5 shadow-[0_1px_2px_rgba(26,46,40,0.05)];
+    @apply bg-paper-50 rounded-card p-5 border border-paper-200;
   }
-  .card-sage {
-    @apply bg-kira-sage/60 rounded-card p-5;
+  .card-muted {
+    @apply bg-paper-100 rounded-card p-5 border border-paper-200;
   }
   .btn-primary {
-    @apply bg-kira-teal text-white rounded-btn px-5 py-3 font-medium active:scale-[0.98] transition-transform;
+    @apply bg-accent-primary text-white rounded-btn px-5 py-3 font-medium active:scale-[0.98] transition-transform;
+  }
+  .btn-secondary {
+    @apply bg-paper-50 text-ink-primary border border-paper-200 rounded-btn px-5 py-3 font-medium hover:bg-paper-100 transition-colors;
   }
   .btn-ghost {
-    @apply bg-white/70 text-kira-dark border border-kira-sage rounded-btn px-5 py-3 font-medium;
+    @apply bg-transparent text-ink-primary border border-paper-200 rounded-btn px-5 py-3 font-medium hover:bg-paper-100 transition-colors;
   }
   .pill {
     @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full;
   }
-  .pill-top    { @apply bg-kira-teal text-white; }
-  .pill-stabil { @apply bg-kira-sage text-kira-dark; }
-  .pill-bahaya { @apply bg-kira-yellow text-kira-dark; }
-  .pill-rugi   { @apply bg-kira-red text-white; }
+  .pill-top    { @apply bg-accent-secondary/20 text-accent-secondary; }
+  .pill-stabil { @apply bg-paper-200 text-ink-secondary; }
+  .pill-bahaya { @apply bg-accent-primary/15 text-accent-primary; }
+  .pill-rugi   { @apply bg-danger/15 text-danger; }
   .input {
-    @apply w-full bg-white border border-kira-sage rounded-btn px-4 py-3 text-kira-dark placeholder:text-kira-muted focus:outline-none focus:ring-2 focus:ring-kira-teal;
+    @apply w-full bg-paper-50 border border-paper-200 rounded-btn px-4 py-3 text-ink-primary placeholder:text-ink-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary/30 focus:border-accent-primary transition-colors;
     min-height: 48px;
   }
+  .section-label {
+    @apply text-xs font-semibold uppercase tracking-widest text-ink-secondary;
+  }
+  .positive { @apply text-accent-secondary tabular; }
+  .negative { @apply text-danger tabular; }
+  .number   { @apply tabular; }
 }
 
 .bar-track {
-  background: rgba(198, 218, 191, 0.4);
+  background: #E8E0D4;
   border-radius: 999px;
-  height: 10px;
+  height: 8px;
   overflow: hidden;
 }
 .bar-fill {

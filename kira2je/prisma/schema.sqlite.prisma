@@ -8,56 +8,79 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  phone     String   @unique
-  name      String?
-  pronoun   String?
-  stallName String?
-  area      String?
-  locale    String?
-  createdAt DateTime @default(now())
-  reports   Report[]
-  items     MenuItem[]
-  whatIf    WhatIfTurn[]
+  id           String              @id @default(cuid())
+  phone        String              @unique
+  name         String?
+  businessName String?
+  businessType String?             // "restaurant" | "cafe" | "catering" | "other"
+  language     String              @default("en")
+  posType      String?
+  whatsappNum  String?
+  createdAt    DateTime            @default(now())
+  reports      Report[]
+  invoices     Invoice[]
+  posUploads   PosUpload[]
+  mappings     IngredientMapping[]
+  whatIf       WhatIfTurn[]
 }
 
-model MenuItem {
-  id                 String        @id @default(cuid())
-  userId             String
-  user               User          @relation(fields: [userId], references: [id])
-  name               String
-  price              Float
-  costPercent        Float?
-  category           String?
-  isDelivery         Boolean       @default(false)
-  deliveryCommission Float?
-  addedAt            DateTime?
-  createdAt          DateTime      @default(now())
-  salesData          SalesRecord[]
+model Invoice {
+  id            String    @id @default(cuid())
+  userId        String
+  supplierName  String?
+  invoiceDate   DateTime?
+  total         Float?
+  lineItems     String?   // JSON stored as string in SQLite
+  rawImageUrl   String?
+  ocrConfidence String?
+  status        String    @default("pending")
+  month         String
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, month])
+  @@index([userId, status])
 }
 
-model SalesRecord {
+model PosUpload {
   id         String   @id @default(cuid())
-  menuItemId String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
-  date       DateTime
-  quantity   Int
-  channel    String?
+  userId     String
+  month      String
+  fileName   String
+  rowCount   Int?
+  parsedData String?  // JSON as string
+  posType    String?
+  columnMap  String?  // JSON as string
   createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
 
-  @@index([menuItemId, date])
+  @@unique([userId, month])
+}
+
+model IngredientMapping {
+  id         String   @id @default(cuid())
+  userId     String
+  ingredient String
+  supplier   String?
+  menuItems  String   // JSON as string
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, ingredient, supplier])
 }
 
 model Report {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  dateRangeFrom DateTime
-  dateRangeTo   DateTime
-  reportData    String
-  createdAt     DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  month       String
+  monthView   String   // JSON as string
+  trendsView  String   // JSON as string
+  generatedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  whatIf      WhatIfTurn[]
 
-  @@index([userId, createdAt])
+  @@unique([userId, month])
+  @@index([userId, generatedAt])
 }
 
 model WhatIfTurn {
@@ -65,22 +88,10 @@ model WhatIfTurn {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   reportId  String
+  report    Report   @relation(fields: [reportId], references: [id])
   question  String
   answer    String
   createdAt DateTime @default(now())
 
   @@index([userId, reportId])
-}
-
-model AreaBenchmark {
-  id         String   @id @default(cuid())
-  itemName   String
-  area       String
-  avgPrice   Float
-  minPrice   Float
-  maxPrice   Float
-  sampleSize Int
-  scrapedAt  DateTime @default(now())
-
-  @@unique([itemName, area])
 }

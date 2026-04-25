@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { mockReportData } from '@/lib/mocks';
 
 export async function GET() {
   const session = await getSession();
@@ -8,8 +9,20 @@ export async function GET() {
 
   const report = await prisma.report.findFirst({
     where: { userId: session.userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { generatedAt: 'desc' },
   });
-  if (!report) return NextResponse.json({ ok: false, reportId: null });
-  return NextResponse.json({ ok: true, reportId: report.id });
+
+  if (!report) {
+    const mock = mockReportData('2026-04');
+    return NextResponse.json({ ok: true, report: { month: '2026-04', ...mock }, isMock: true });
+  }
+
+  const monthView = typeof report.monthView === 'string'
+    ? JSON.parse(report.monthView)
+    : report.monthView;
+  const trendsView = typeof report.trendsView === 'string'
+    ? JSON.parse(report.trendsView)
+    : report.trendsView;
+
+  return NextResponse.json({ ok: true, report: { id: report.id, month: report.month, monthView, trendsView } });
 }

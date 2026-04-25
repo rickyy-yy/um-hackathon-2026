@@ -1,193 +1,173 @@
-import type { AnalyticsResult, FullReport } from './schemas';
 import type { Locale } from './i18n/dictionary';
 
+const SYSTEM = {
+  en: 'You are Kira2 je, an AI financial analyst for Malaysian F&B businesses. You are professional but approachable — like a smart business advisor who genuinely wants the operator to succeed. Be specific with numbers. Always use RM. No financial jargon.',
+  bm: 'Anda adalah Kira2 je, analis kewangan AI untuk perniagaan F&B Malaysia. Anda profesional tetapi mesra — seperti penasihat perniagaan yang bijak yang benar-benar mahu pengusaha berjaya. Spesifik dengan nombor. Sentiasa guna RM. Tiada jargon kewangan.',
+};
+
 export function systemPrompt(locale: Locale): string {
-  if (locale === 'en') {
-    return 'You are Kira2 je, an AI menu advisor for Malaysian micro F&B businesses. Respond in casual Malaysian English — friendly, like a friend talking to a small-business owner. Use RM for all monetary values. Avoid financial jargon.';
-  }
-  return 'Anda ialah Kira2 je, penasihat menu AI untuk perniagaan F&B mikro di Malaysia. Jawab dalam Bahasa Malaysia santai, seperti kawan. Gunakan RM untuk semua nilai wang. Jangan guna jargon kewangan yang susah.';
+  return SYSTEM[locale] ?? SYSTEM.en;
 }
 
-// Legacy export kept for callers that import SYSTEM_BM directly (none in app)
-export const SYSTEM_BM = systemPrompt('ms');
-
-export function ocrPrompt(locale: Locale = 'ms', noisyOcr = false): string {
+export function invoiceOcrPrompt(locale: Locale, noisyOcr = false): string {
   const noiseNote = noisyOcr
-    ? locale === 'en'
-      ? `\n\nIMPORTANT: The text below came from Tesseract OCR on handwritten text — it contains noise and errors. Apply these corrections:
-- Prices/numbers: 'é'→'6', 'o'→'0', '-'→'.', '|'→'1', 'S'→'5', 'B'→'8', 'G'→'6'
-- Dates like "jole/26" → "01/04/26" (day/month/year), "b3/ou/26" → "03/04/26"
-- Item names: "Nast Goren"→"Nasi Goreng", "Mee Qoveno"→"Mee Goreng", "Sivap"→"Sirap"
-- Extract ALL rows that have at least a number pattern (price or quantity)
-- If date is unclear, use the nearest clear date in the same block`
-      : `\n\nPENTING: Teks di bawah dari Tesseract OCR pada tulisan tangan — ia mengandungi hingar dan ralat. Guna pembetulan ini:
-- Harga/nombor: 'é'→'6', 'o'→'0', '-'→'.', '|'→'1', 'S'→'5', 'B'→'8', 'G'→'6'
-- Tarikh seperti "jole/26" → "01/04/26" (hari/bulan/tahun), "b3/ou/26" → "03/04/26"
-- Nama item: "Nast Goren"→"Nasi Goreng", "Mee Qoveno"→"Mee Goreng", "Sivap"→"Sirap"
-- Ekstrak SEMUA baris yang ada corak nombor (harga atau kuantiti)
-- Jika tarikh tidak jelas, guna tarikh terdekat yang jelas dalam blok yang sama`
+    ? `\n\nNOTE: Text below is from Tesseract OCR on a physical invoice — expect noise. Apply corrections: 'o'→'0', 'l'→'1', 'B'→'8', 'S'→'5', 'é'→'6'. Extract all numeric rows even if supplier name is unclear.`
     : '';
 
-  if (locale === 'en') {
-    return `You are analyzing a photo of handwritten sales records from a Malaysian F&B stall.
-Extract all sales data and return as JSON:
+  if (locale === 'bm') {
+    return `Anda menganalisis gambar invois pembekal Malaysia (boleh dalam BM, Inggeris, atau campuran).
+
+Ekstrak data dan kembalikan JSON:
 {
-  "items": [{ "name": "...", "quantity": ..., "price": ..., "date": "YYYY-MM-DD" }],
+  "supplierName": "...",
+  "invoiceDate": "YYYY-MM-DD",
+  "total": <number or null>,
+  "lineItems": [{ "description": "...", "quantity": <number>, "unit": "kg/pcs/btl/etc", "unitPrice": <number>, "total": <number> }],
   "confidence": "high" | "medium" | "low",
-  "missingInfo": ["list of what you couldn't determine"]
-}
-Records may be in BM, English, or mixed. Handwriting may be messy.
-Interpret abbreviations (NL = nasi lemak, TT = teh tarik, MG = mee goreng, etc.)${noiseNote}`;
-  }
-  return `Anda sedang analisis gambar rekod jualan tulisan tangan dari gerai makanan Malaysia.
-Ekstrak semua data jualan dan kembalikan sebagai JSON:
-{
-  "items": [{ "name": "...", "quantity": ..., "price": ..., "date": "YYYY-MM-DD" }],
-  "confidence": "high" | "medium" | "low",
-  "missingInfo": ["senarai apa yang tak pasti"]
-}
-Rekod mungkin dalam BM, Inggeris, atau campuran. Tulisan mungkin tak kemas.
-Tafsir singkatan (NL = nasi lemak, TT = teh tarik, MG = mee goreng, dll.)${noiseNote}`;
+  "missingInfo": ["..."]
 }
 
-export function followupPrompt(
-  extracted: unknown,
-  askedSoFar: string[],
-  locale: Locale = 'ms'
+Fokus: nama pembekal, tarikh, jumlah akhir, dan setiap item baris dengan harga. Jika sesuatu tidak jelas, masukkan dalam missingInfo.${noiseNote}`;
+  }
+
+  return `You are analyzing a photo of a Malaysian supplier invoice (may be in BM, English, or mixed).
+
+Extract the data and return as JSON:
+{
+  "supplierName": "...",
+  "invoiceDate": "YYYY-MM-DD",
+  "total": <number or null>,
+  "lineItems": [{ "description": "...", "quantity": <number>, "unit": "kg/pcs/btl/etc", "unitPrice": <number>, "total": <number> }],
+  "confidence": "high" | "medium" | "low",
+  "missingInfo": ["..."]
+}
+
+Focus on: supplier name, date, final total, and each line item with pricing. If something is unclear, note it in missingInfo.${noiseNote}`;
+}
+
+export function ingredientMappingPrompt(
+  invoiceItems: unknown[],
+  menuItems: string[],
+  savedMappings: unknown[],
+  locale: Locale
 ): string {
-  if (locale === 'en') {
-    return `Based on the data collected so far, identify what's still missing for a full profitability analysis.
+  if (locale === 'bm') {
+    return `Anda adalah Kira2 je. Berdasarkan item invois dan item menu, infersikan bahan mana diperlukan untuk hidangan mana.
 
-Data so far: ${JSON.stringify(extracted).slice(0, 800)}
-
-Questions asked: ${askedSoFar.join(' | ')}
-
-Ask ONE next question. Focus on: (1) food cost % per category, (2) delivery platforms and commissions, (3) menu changes in the last 3 months.
-
-Return JSON: { "question": "...", "done": bool, "field": "costPercent"|"deliveryCommission"|"menuChanges"|"none" }`;
-  }
-  return `Berdasarkan data yang dah dikumpul, kenal pasti apa maklumat yang masih kurang untuk analisis keuntungan penuh.
-
-Data setakat ini: ${JSON.stringify(extracted).slice(0, 800)}
-
-Soalan yang dah ditanya: ${askedSoFar.join(' | ')}
-
-Tanya SATU soalan seterusnya sahaja. Fokus pada: (1) peratus kos makanan untuk setiap kategori, (2) platform delivery dan komisyen, (3) perubahan menu 3 bulan lepas.
-
-Kembalikan JSON: { "question": "...", "done": bool, "field": "costPercent"|"deliveryCommission"|"menuChanges"|"none" }`;
-}
-
-export function reportPrompt(analytics: AnalyticsResult, locale: Locale = 'ms'): string {
-  const data = JSON.stringify(analytics);
-  if (locale === 'en') {
-    return `Generate a strategic report based on the analytics data below. All numbers are pre-computed — your job is just to explain the patterns and give recommendations.
-
-Data: ${data}
-
-The report must include:
-1. Summary (one short sentence about overall performance)
-2. Cannibalization narrative (if detected) — explain with actual numbers
-3. Delivery trap narrative (if any) — name items and RM amounts
-4. Tax narrative (refer to data.tax)
-5. Ranked recommendations (max 5) — each with impactRm estimate
-
-Return JSON:
-{
-  "headline": "...",
-  "summary": "...",
-  "cannibalizationNarrative": "..." or null,
-  "deliveryNarrative": "..." or null,
-  "taxNarrative": "...",
-  "recommendations": [{ "rank": 1, "title": "...", "description": "...", "impactRm": ... }],
-  "totalImpactRm": ...
-}
-
-Use actual item names and exact RM amounts. Casual friend-of-the-boss tone.`;
-  }
-  return `Hasilkan laporan strategik dalam BM berdasarkan data analitik di bawah. Semua nombor sudah dikira — tugas anda hanya menerangkan corak dan memberi cadangan.
-
-Data: ${data}
-
-Laporan mesti merangkumi:
-1. Ringkasan (ayat pendek tentang prestasi keseluruhan)
-2. Naratif kanibalisasi (jika dikesan) — terangkan dengan angka sebenar
-3. Naratif perangkap delivery (jika ada) — sebut nama item dan RM
-4. Naratif cukai (rujuk angka dalam data.tax)
-5. Cadangan berperingkat (maks 5) — setiap satu dengan impactRm anggaran
+Item invois: ${JSON.stringify(invoiceItems)}
+Item menu: ${JSON.stringify(menuItems)}
+Pemetaan yang disimpan sebelumnya: ${JSON.stringify(savedMappings)}
 
 Kembalikan JSON:
 {
-  "headline": "...",
-  "summary": "...",
-  "cannibalizationNarrative": "..." atau null,
-  "deliveryNarrative": "..." atau null,
-  "taxNarrative": "...",
-  "recommendations": [{ "rank": 1, "title": "...", "description": "...", "impactRm": ... }],
-  "totalImpactRm": ...
+  "mappings": [
+    {
+      "ingredient": "nama bahan dari invois",
+      "supplier": "nama pembekal",
+      "quantity": "kuantiti dari invois",
+      "menuItems": ["item menu 1", "item menu 2"],
+      "confidence": "high" | "medium" | "low"
+    }
+  ],
+  "unmappedIngredients": ["bahan yang tiada padanan"],
+  "unmappedMenuItems": ["item menu yang tiada padanan bahan"]
 }
 
-Guna nama item sebenar dan RM tepat. Nada santai seperti kawan.`;
+Gunakan konteks M'sia: ayam = ayam goreng, nasi lemak, nasi ayam, dll. Santan = nasi lemak, laksa, dll.`;
+  }
+
+  return `You are Kira2 je. Given invoice line items and menu items, infer which ingredients are used in which dishes.
+
+Invoice items: ${JSON.stringify(invoiceItems)}
+Menu items: ${JSON.stringify(menuItems)}
+Previously confirmed mappings: ${JSON.stringify(savedMappings)}
+
+Return as JSON:
+{
+  "mappings": [
+    {
+      "ingredient": "ingredient name from invoice",
+      "supplier": "supplier name",
+      "quantity": "quantity from invoice",
+      "menuItems": ["menu item 1", "menu item 2"],
+      "confidence": "high" | "medium" | "low"
+    }
+  ],
+  "unmappedIngredients": ["ingredients with no match"],
+  "unmappedMenuItems": ["menu items with no ingredient match"]
+}
+
+Use Malaysian F&B context: chicken → ayam goreng, nasi lemak, nasi ayam, etc. Coconut milk → nasi lemak, laksa, etc.`;
+}
+
+export function reportPrompt(
+  salesData: unknown,
+  expenseData: unknown,
+  mappings: unknown,
+  historicalData: unknown,
+  locale: Locale
+): string {
+  const lang = locale === 'bm' ? 'Bahasa Malaysia (BM)' : 'English';
+
+  return `You are Kira2 je, an AI financial analyst for Malaysian F&B businesses.
+
+Language: ${lang}
+
+Generate BOTH a single-month snapshot and a cumulative trends view.
+
+Sales data (current month): ${JSON.stringify(salesData).slice(0, 3000)}
+Expense data (current month, from confirmed invoices): ${JSON.stringify(expenseData).slice(0, 2000)}
+Ingredient-to-menu mappings: ${JSON.stringify(mappings).slice(0, 1000)}
+Historical data (previous months): ${historicalData ? JSON.stringify(historicalData).slice(0, 2000) : 'null'}
+
+Return as JSON:
+{
+  "monthView": {
+    "summary": { "totalRevenue": number, "totalExpenses": number, "estimatedProfit": number, "marginPct": number },
+    "topPerformers": [{ "item": string, "revenue": number, "estimatedCost": number, "profit": number, "marginPct": number }],
+    "costBreakdown": [{ "category": string, "amount": number, "pctOfTotal": number }],
+    "atRiskItems": [{ "item": string, "reason": string }],
+    "recommendations": [{ "rank": number, "title": string, "description": string, "estimatedMonthlyImpactRm": number }]
+  },
+  "trendsView": {
+    "summary": { "avgMarginPct": number, "marginTrendPct": number, "revenueTrendPct": number, "monthsAnalysed": number },
+    "marginOverTime": [{ "month": string, "marginPct": number, "revenue": number, "expenses": number }],
+    "supplierPriceChanges": [{ "supplier": string, "item": string, "changePct": number, "period": string }],
+    "cannibalization": { "detected": boolean, "alerts": [{ "newItem": string, "affectedItem": string, "salesDropPct": number, "netCategoryGrowthPct": number, "detail": string }] },
+    "monthOverMonth": [{ "metric": string, "current": number, "previous": number, "changePct": number }]
+  }
+}
+
+Rules:
+- Use actual item names and exact RM amounts
+- If historical data is null or < 2 months, return trends_view.summary.monthsAnalysed = 1 and empty arrays for time-series fields
+- Cannibalization only if 3+ months of data showing correlated sales movement
+- All text in ${lang}
+- Use RM for all monetary values`;
 }
 
 export function whatIfPrompt(
-  report: FullReport,
+  monthView: unknown,
+  trendsView: unknown,
   question: string,
-  locale: Locale = 'ms'
+  locale: Locale
 ): string {
-  const topItems = report.analytics.items
-    .slice()
-    .sort((a, b) => b.monthlyProfit - a.monthlyProfit)
-    .slice(0, 3);
-  const cannibalization = report.analytics.cannibalization;
-  const traps = report.analytics.deliveryTraps;
+  const lang = locale === 'bm' ? 'Bahasa Malaysia (BM)' : 'English';
 
-  if (locale === 'en') {
-    return `The user is asking a "what if" question about their menu.
+  return `You are Kira2 je. The operator is asking a "what if" question about their business.
 
-Current report (summary):
-- Monthly profit: RM${report.analytics.estimatedProfit}
-- Top items: ${topItems.map((i) => `${i.name} (RM${i.monthlyProfit}/month)`).join(', ')}
-- Cannibalization: ${
-      cannibalization.detected
-        ? `${cannibalization.culpritItem} pulling sales from ${cannibalization.victimItem}`
-        : 'none'
-    }
-- Delivery traps: ${traps.map((t) => t.itemName).join(', ') || 'none'}
+Current month summary: ${JSON.stringify(monthView)}
+Trends summary: ${JSON.stringify(trendsView)}
 
-User question: "${question}"
+Question: "${question}"
 
 Reason step by step:
-- How would this change affect sales volume?
-- How would margin change?
-- New cannibalization risk?
-- Estimated RM impact per month?
+1. How would this affect sales volume?
+2. How would costs/margins change?
+3. Is there a cannibalization risk?
+4. Estimated RM impact per month?
 
-Return JSON: { "answer": "...", "projectedDeltaRm": ... or null, "risks": ["..."] }
+Return JSON: { "answer": "...", "projectedDeltaRm": number or null, "risks": ["..."] }
 
-Respond in casual Malaysian English. Be specific with RM numbers. Be honest about risks.`;
-  }
-
-  return `Pengguna tanya soalan "what if" tentang menu mereka.
-
-Laporan semasa (ringkas):
-- Untung bulanan: RM${report.analytics.estimatedProfit}
-- Item teratas: ${topItems.map((i) => `${i.name} (RM${i.monthlyProfit}/bulan)`).join(', ')}
-- Kanibalisasi: ${
-    cannibalization.detected
-      ? `${cannibalization.culpritItem} menarik jualan dari ${cannibalization.victimItem}`
-      : 'tiada'
-  }
-- Perangkap delivery: ${traps.map((t) => t.itemName).join(', ') || 'tiada'}
-
-Soalan pengguna: "${question}"
-
-Fikir langkah demi langkah:
-- Bagaimana perubahan ini akan jejas volum jualan?
-- Bagaimana margin akan berubah?
-- Ada risiko kanibalisasi baru?
-- Berapa anggaran impact RM sebulan?
-
-Kembalikan JSON: { "answer": "...", "projectedDeltaRm": ... atau null, "risks": ["..."] }
-
-Jawab dalam BM santai. Guna RM tepat. Jujur tentang risiko.`;
+Answer in ${lang}. Be specific with RM numbers. Be honest about uncertainty.`;
 }

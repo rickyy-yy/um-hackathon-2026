@@ -7,7 +7,7 @@ export function LanguageToggle() {
   const current = useLocale();
 
   async function swap() {
-    const next: Locale = current === 'ms' ? 'en' : 'ms';
+    const next: Locale = current === 'bm' ? 'en' : 'bm';
     await fetch('/api/locale', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -22,7 +22,7 @@ export function LanguageToggle() {
       className="rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 border border-white/40 transition-colors shrink-0"
       aria-label="Change language"
     >
-      {current === 'ms' ? 'EN' : 'BM'}
+      {current === 'bm' ? 'EN' : 'BM'}
     </button>
   );
 }

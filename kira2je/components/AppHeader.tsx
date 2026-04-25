@@ -14,7 +14,7 @@ export function AppHeader({
   backHref?: string;
 }) {
   return (
-    <header className="bg-kira-teal text-white px-5 lg:px-8 pt-5 pb-4 shrink-0">
+    <header className="bg-accent-primary text-white px-5 lg:px-8 pt-5 pb-4 shrink-0">
       <div className="flex justify-between items-center gap-3">
         <div className="flex items-center gap-3 min-w-0">
           {backHref && (

@@ -29,12 +29,12 @@ export function OnboardingCards({ cards, skipLabel }: { cards: Card[]; skipLabel
             >
               <Link href={card.href} className="card-sage block h-full">
                 <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-kira-teal/10 flex items-center justify-center shrink-0">
-                    <Icon size={20} className="text-kira-teal" />
+                  <div className="w-10 h-10 rounded-xl bg-accent-primary/10 flex items-center justify-center shrink-0">
+                    <Icon size={20} className="text-accent-primary" />
                   </div>
                   <div>
                     <div className="font-semibold mb-1">{card.title}</div>
-                    <div className="text-sm text-kira-muted">{card.desc}</div>
+                    <div className="text-sm text-ink-secondary">{card.desc}</div>
                   </div>
                 </div>
               </Link>
@@ -49,7 +49,7 @@ export function OnboardingCards({ cards, skipLabel }: { cards: Card[]; skipLabel
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4, duration: 0.4 }}
       >
-        <Link href="/dashboard" className="text-sm text-kira-muted underline hover:text-kira-dark transition-colors">
+        <Link href="/dashboard" className="text-sm text-ink-secondary underline hover:text-ink-primary transition-colors">
           {skipLabel}
         </Link>
       </motion.div>

@@ -8,19 +8,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        kira: {
-          teal: '#0F6E56',
-          yellow: '#F0DD62',
-          sage: '#C6DABF',
-          cream: '#F3E9D2',
-          red: '#D64933',
-          dark: '#1A2E28',
-          muted: '#5E6B5A',
+        paper: {
+          50: '#FDFBF7',   // main app bg, cards
+          100: '#F6F1EA',  // page bg, section fills
+          200: '#E8E0D4',  // borders, dividers
         },
+        ink: {
+          primary: '#2C2418',   // headings, body, numbers
+          secondary: '#A89880', // labels, captions, muted
+        },
+        accent: {
+          primary: '#C4541E',   // CTAs, active states, primary buttons
+          secondary: '#5B7F6E', // success, positive indicators, profit
+        },
+        danger: '#B83A2A',      // errors, loss, negative trends
       },
       fontFamily: {
-        serif: ['Georgia', 'Playfair Display', 'serif'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'DM Sans', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         card: '12px',

@@ -12,7 +12,7 @@ function normalizePhone(raw: string): string {
 export async function POST(req: Request) {
   const { phone, otp } = (await req.json()) as { phone?: string; otp?: string };
   if (!phone || !otp || !/^\d{6}$/.test(otp)) {
-    return NextResponse.json({ ok: false, error: 'OTP mesti 6 digit' }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'OTP must be 6 digits' }, { status: 400 });
   }
 
   const normalized = normalizePhone(phone);
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
   const latestReport = await prisma.report.findFirst({
     where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { generatedAt: 'desc' },
   });
 
   return NextResponse.json({
@@ -35,6 +35,6 @@ export async function POST(req: Request) {
     isNew,
     hasProfile: !!user.name,
     hasReport: !!latestReport,
-    reportId: latestReport?.id ?? null,
+    reportMonth: latestReport?.month ?? null,
   });
 }

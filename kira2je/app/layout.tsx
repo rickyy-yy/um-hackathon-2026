@@ -19,7 +19,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await getLocale();
   return (
     <html lang={locale}>
-      <body className="bg-kira-cream text-kira-dark">
+      <body className="bg-paper-50 text-ink-primary">
         <LocaleProvider locale={locale}>
           <div className="min-h-screen relative">
             {children}

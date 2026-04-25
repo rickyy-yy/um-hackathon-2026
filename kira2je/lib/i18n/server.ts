@@ -5,7 +5,7 @@ export const LOCALE_COOKIE = 'kira2je_locale';
 
 export async function getLocale(): Promise<Locale> {
   const v = cookies().get(LOCALE_COOKIE)?.value;
-  return v === 'en' || v === 'ms' ? v : DEFAULT_LOCALE;
+  return v === 'en' || v === 'bm' ? v : DEFAULT_LOCALE;
 }
 
 export function t(key: TranslationKey, locale: Locale, vars?: Record<string, string | number>) {

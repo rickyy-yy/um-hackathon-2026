@@ -1,103 +1,164 @@
 import { z } from 'zod';
 
-export const StatusPill = z.enum(['Top', 'Stabil', 'Bahaya', 'Rugi']);
-export type StatusPill = z.infer<typeof StatusPill>;
+// ─── Invoice OCR ─────────────────────────────────────────────────────────────
 
-export const ItemPerf = z.object({
-  id: z.string(),
-  name: z.string(),
-  price: z.number(),
-  perDay: z.number(),
-  costPercent: z.number(),
-  marginRm: z.number(),
-  monthlyRevenue: z.number(),
-  monthlyProfit: z.number(),
-  status: StatusPill,
+export const InvoiceLineItem = z.object({
+  description: z.string(),
+  quantity: z.number().optional(),
+  unit: z.string().optional(),
+  unitPrice: z.number().optional(),
+  total: z.number().optional(),
+});
+export type InvoiceLineItem = z.infer<typeof InvoiceLineItem>;
+
+export const InvoiceOcrResult = z.object({
+  supplierName: z.string().nullable(),
+  invoiceDate: z.string().nullable(), // "YYYY-MM-DD"
+  total: z.number().nullable(),
+  lineItems: z.array(InvoiceLineItem),
+  confidence: z.enum(['high', 'medium', 'low']),
+  missingInfo: z.array(z.string()),
+});
+export type InvoiceOcrResult = z.infer<typeof InvoiceOcrResult>;
+
+// ─── POS / Sales ─────────────────────────────────────────────────────────────
+
+export const SalesRow = z.object({
+  itemName: z.string(),
+  quantity: z.number(),
+  unitPrice: z.number(),
+  date: z.string().optional(), // "YYYY-MM-DD"
   category: z.string().optional(),
+  channel: z.string().optional(), // "dine-in" | "takeaway" | "grab" | etc.
 });
-export type ItemPerf = z.infer<typeof ItemPerf>;
+export type SalesRow = z.infer<typeof SalesRow>;
 
-export const DeliveryTrap = z.object({
-  itemId: z.string(),
-  itemName: z.string(),
-  price: z.number(),
-  commission: z.number(),
-  effectiveMarginRm: z.number(),
-  platform: z.string(),
-});
-export type DeliveryTrap = z.infer<typeof DeliveryTrap>;
+// ─── Ingredient Mapping ───────────────────────────────────────────────────────
 
-export const Cannibalization = z.object({
-  detected: z.boolean(),
-  victimItem: z.string().optional(),
-  culpritItem: z.string().optional(),
-  correlation: z.number().optional(),
-  volumeBefore: z.number().optional(),
-  volumeAfter: z.number().optional(),
-  netMonthlyImpactRm: z.number().optional(),
+export const MappingProposal = z.object({
+  ingredient: z.string(),
+  supplier: z.string().optional(),
+  quantity: z.string().optional(),
+  menuItems: z.array(z.string()),
+  confidence: z.enum(['high', 'medium', 'low']),
 });
-export type Cannibalization = z.infer<typeof Cannibalization>;
+export type MappingProposal = z.infer<typeof MappingProposal>;
 
-export const TaxBreakdown = z.object({
-  annualProfit: z.number(),
-  totalRelief: z.number(),
-  chargeableIncome: z.number(),
-  annualTax: z.number(),
-  monthlyTax: z.number(),
-  reliefsApplied: z.array(z.string()),
+export const IngredientMappingResult = z.object({
+  mappings: z.array(MappingProposal),
+  unmappedIngredients: z.array(z.string()),
+  unmappedMenuItems: z.array(z.string()),
 });
-export type TaxBreakdown = z.infer<typeof TaxBreakdown>;
+export type IngredientMappingResult = z.infer<typeof IngredientMappingResult>;
 
-export const BenchmarkRow = z.object({
-  itemName: z.string(),
-  userPrice: z.number().nullable(),
-  avgPrice: z.number(),
-  minPrice: z.number(),
-  maxPrice: z.number(),
-  area: z.string(),
-});
-export type BenchmarkRow = z.infer<typeof BenchmarkRow>;
+// ─── Report Views ─────────────────────────────────────────────────────────────
 
-export const AnalyticsResult = z.object({
-  userId: z.string(),
-  dateRangeFrom: z.string(),
-  dateRangeTo: z.string(),
-  totalRevenue: z.number(),
-  estimatedProfit: z.number(),
-  revenueChangePct: z.number(),
-  profitChangePct: z.number(),
-  items: z.array(ItemPerf),
-  cannibalization: Cannibalization,
-  deliveryTraps: z.array(DeliveryTrap),
-  tax: TaxBreakdown,
-  benchmarks: z.array(BenchmarkRow),
+export const TopPerformer = z.object({
+  item: z.string(),
+  revenue: z.number(),
+  estimatedCost: z.number(),
+  profit: z.number(),
+  marginPct: z.number(),
 });
-export type AnalyticsResult = z.infer<typeof AnalyticsResult>;
+
+export const CostBreakdown = z.object({
+  category: z.string(),
+  amount: z.number(),
+  pctOfTotal: z.number(),
+});
+
+export const AtRiskItem = z.object({
+  item: z.string(),
+  reason: z.string(),
+});
 
 export const Recommendation = z.object({
   rank: z.number(),
   title: z.string(),
   description: z.string(),
-  impactRm: z.number(),
+  estimatedMonthlyImpactRm: z.number(),
 });
-export type Recommendation = z.infer<typeof Recommendation>;
 
-export const ReportNarration = z.object({
-  headline: z.string(),
-  summary: z.string(),
-  cannibalizationNarrative: z.string().nullable(),
-  deliveryNarrative: z.string().nullable(),
-  taxNarrative: z.string(),
+export const MonthSummary = z.object({
+  totalRevenue: z.number(),
+  totalExpenses: z.number(),
+  estimatedProfit: z.number(),
+  marginPct: z.number(),
+});
+
+export const MonthView = z.object({
+  summary: MonthSummary,
+  topPerformers: z.array(TopPerformer),
+  costBreakdown: z.array(CostBreakdown),
+  atRiskItems: z.array(AtRiskItem),
   recommendations: z.array(Recommendation),
-  totalImpactRm: z.number(),
 });
-export type ReportNarration = z.infer<typeof ReportNarration>;
+export type MonthView = z.infer<typeof MonthView>;
 
-export const FullReport = z.object({
-  analytics: AnalyticsResult,
-  narration: ReportNarration,
+export const MonthDataPoint = z.object({
+  month: z.string(),
+  marginPct: z.number(),
+  revenue: z.number(),
+  expenses: z.number(),
 });
-export type FullReport = z.infer<typeof FullReport>;
+
+export const SupplierPriceChange = z.object({
+  supplier: z.string(),
+  item: z.string(),
+  changePct: z.number(),
+  period: z.string(),
+});
+
+export const CannibalizationAlert = z.object({
+  newItem: z.string(),
+  affectedItem: z.string(),
+  salesDropPct: z.number(),
+  netCategoryGrowthPct: z.number(),
+  detail: z.string(),
+});
+
+export const MoMComparison = z.object({
+  metric: z.string(),
+  current: z.number(),
+  previous: z.number(),
+  changePct: z.number(),
+});
+
+export const TrendsSummary = z.object({
+  avgMarginPct: z.number(),
+  marginTrendPct: z.number(),
+  revenueTrendPct: z.number(),
+  monthsAnalysed: z.number(),
+});
+
+export const TrendsView = z.object({
+  summary: TrendsSummary,
+  marginOverTime: z.array(MonthDataPoint),
+  supplierPriceChanges: z.array(SupplierPriceChange),
+  cannibalization: z.object({
+    detected: z.boolean(),
+    alerts: z.array(CannibalizationAlert),
+  }),
+  monthOverMonth: z.array(MoMComparison),
+});
+export type TrendsView = z.infer<typeof TrendsView>;
+
+export const ReportData = z.object({
+  monthView: MonthView,
+  trendsView: TrendsView,
+});
+export type ReportData = z.infer<typeof ReportData>;
+
+// ─── What-If ──────────────────────────────────────────────────────────────────
+
+export const WhatIfAnswer = z.object({
+  answer: z.string(),
+  projectedDeltaRm: z.number().nullable(),
+  risks: z.array(z.string()),
+});
+export type WhatIfAnswer = z.infer<typeof WhatIfAnswer>;
+
+// ─── Legacy (kept for backward compat with whatif route) ─────────────────────
 
 export const OcrExtraction = z.object({
   items: z.array(
@@ -112,17 +173,3 @@ export const OcrExtraction = z.object({
   missingInfo: z.array(z.string()),
 });
 export type OcrExtraction = z.infer<typeof OcrExtraction>;
-
-export const FollowupTurn = z.object({
-  question: z.string(),
-  done: z.boolean(),
-  field: z.enum(['costPercent', 'deliveryCommission', 'menuChanges', 'none']),
-});
-export type FollowupTurn = z.infer<typeof FollowupTurn>;
-
-export const WhatIfAnswer = z.object({
-  answer: z.string(),
-  projectedDeltaRm: z.number().nullable(),
-  risks: z.array(z.string()),
-});
-export type WhatIfAnswer = z.infer<typeof WhatIfAnswer>;
