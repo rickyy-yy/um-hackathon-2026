@@ -8,6 +8,22 @@ UM Hackathon 2026 entry — domain: **AI for Economic Empowerment & Decision Int
 
 ---
 
+## Demo Video and Documents
+
+Google Drive Link: [Here](https://drive.google.com/drive/folders/1cMf5HkCVZSdWbYdoYLyZ6qFqtJ19hXBL?usp=sharing)
+
+This Drive folder should include:
+
+- Product Requirements Document (PRD)
+- System Analysis Document (SAD)
+- Quality Assurance Testing Document (QATD)
+- Pitch Deck.pdf
+- Pitch Video.mp4
+
+**Alternatively, the documents can be found in the /documents directory within this repository.**
+
+---
+
 ## The Problem
 
 Malaysian micro F&B operators rarely know which menu items are actually profitable. A nasi lemak that sells 100 plates a day can still lose money if ingredient costs spike. A Milo Dinosaur listed on GrabFood can silently bleed margin after the 30% platform cut. Most owners lack the time, tools, or accounting background to find out.
@@ -175,14 +191,6 @@ All variables are optional in mock mode. The only required change for a producti
 
 Kira2 je uses any OpenAI-compatible endpoint. Switch providers by editing `.env` only — no code changes.
 
-**Z.AI GLM (recommended for Malaysia region):**
-```bash
-MOCK_LLM=false
-LLM_BASE_URL=https://api.z.ai/v1
-LLM_API_KEY=your-key
-LLM_MODEL=glm-4
-```
-
 **OpenAI:**
 ```bash
 MOCK_LLM=false
@@ -304,23 +312,3 @@ kira2je/
 ```
 
 ---
-
-## Business Model
-
-1. **Freemium core** — one full report per month, what-if chat, and 30-day data retention, free
-2. **Tax filing package** — RM49/year for an e-filing helper with LHDN awareness
-3. **POS partnerships** — referral commission from StoreHub, Slurp, and GrabPay integrations
-
-Raw data stays in Malaysia. No ads, no data sales, no competitor scraping.
-
----
-
-## Hackathon Context
-
-| Detail | Value |
-|---|---|
-| Event | UM Hackathon 2026 |
-| Domain | AI for Economic Empowerment & Decision Intelligence |
-| Target user | Malaysian micro F&B operator (kopitiam, warung, small café) |
-| Primary language | Bahasa Malaysia |
-| Demo account | Mak Cik Aminah — `+60123456789`, 3 months pre-seeded |
