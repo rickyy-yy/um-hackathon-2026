@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -18,6 +19,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
+import { LoadingDots } from '@/components/LoadingDots';
 import { useT } from '@/lib/i18n/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,7 +43,10 @@ type MockInvoice = {
   status?: string;
 };
 
-const CURRENT_MONTH = '2026-04';
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
 
 // ─── Confidence badge ─────────────────────────────────────────────────────────
 
@@ -92,9 +97,11 @@ function WhatsAppCard() {
 function UploadSheet({
   onClose,
   onRefresh,
+  month,
 }: {
   onClose: () => void;
   onRefresh: () => void;
+  month: string;
 }) {
   const [processing, setProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -126,7 +133,7 @@ function UploadSheet({
       const res = await fetch('/api/upload/photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images }),
+        body: JSON.stringify({ images, month }),
       });
       const data = await res.json() as { ok: boolean; error?: string; count?: number };
 
@@ -187,7 +194,9 @@ function UploadSheet({
                 <Loader2 size={36} className="text-accent-primary" />
               </motion.div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-ink-primary">Reading invoice…</p>
+                <p className="text-sm font-semibold text-ink-primary flex items-center gap-1.5">
+                  Reading invoice<LoadingDots />
+                </p>
                 <p className="text-xs text-ink-secondary mt-1">Extracting line items with AI</p>
               </div>
             </motion.div>
@@ -245,15 +254,15 @@ function UploadSheet({
 function InvoiceCard({
   invoice,
   isNew,
-  onConfirm,
   onDelete,
   onEdit,
+  onConfirm,
 }: {
   invoice: MockInvoice;
   isNew: boolean;
-  onConfirm: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, patch: Partial<MockInvoice>) => void;
+  onConfirm: (id: string) => void;
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
@@ -501,10 +510,16 @@ function InvoiceCard({
       )}
 
       <div className="flex items-center gap-3 pt-1">
-        <button onClick={() => onConfirm(invoice.id)} className="flex-1 btn-primary text-sm py-2.5">
-          {t('queue.confirm')}
-        </button>
-        <button onClick={startEdit} className="btn-secondary text-sm py-2.5 px-4">{t('queue.edit')}</button>
+        {invoice.status === 'confirmed' ? (
+          <button onClick={startEdit} className="flex-1 btn-secondary text-sm py-2.5">{t('queue.edit')}</button>
+        ) : (
+          <button
+            onClick={() => onConfirm(invoice.id)}
+            className="flex-1 btn-primary text-sm py-2.5"
+          >
+            Confirm
+          </button>
+        )}
         <button onClick={() => onDelete(invoice.id)} className="text-sm text-danger hover:underline px-2 py-2.5">
           {t('queue.delete')}
         </button>
@@ -515,7 +530,10 @@ function InvoiceCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ConfirmationQueuePage() {
+function ConfirmationQueuePageInner() {
+  const searchParams = useSearchParams();
+  const CURRENT_MONTH = searchParams.get('month') ?? getCurrentMonth();
+
   const t = useT();
   const [invoices, setInvoices] = useState<MockInvoice[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -542,13 +560,6 @@ export default function ConfirmationQueuePage() {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  async function handleConfirm(id: string) {
-    const res = await fetch(`/api/invoices/${id}/confirm`, { method: 'POST' });
-    if (res.ok) {
-      setInvoices((prev) => prev.filter((inv) => inv.id !== id));
-    }
-  }
-
   async function handleDelete(id: string) {
     const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
     if (res.ok) {
@@ -560,17 +571,28 @@ export default function ConfirmationQueuePage() {
     setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, ...patch } : inv)));
   }
 
+  async function handleConfirm(id: string) {
+    const res = await fetch(`/api/invoices/${id}`, { method: 'POST' });
+    if (res.ok) {
+      setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, status: 'confirmed' } : inv)));
+    }
+  }
+
   async function confirmAllHigh() {
-    const highInvoices = invoices.filter((i) => i.confidence === 'high');
-    await Promise.all(highInvoices.map((inv) => fetch(`/api/invoices/${inv.id}/confirm`, { method: 'POST' })));
-    setInvoices((prev) => prev.filter((inv) => inv.confidence !== 'high'));
+    const highPending = invoices.filter((inv) => inv.status !== 'confirmed' && inv.confidence === 'high');
+    await Promise.all(highPending.map((inv) => fetch(`/api/invoices/${inv.id}`, { method: 'POST' })));
+    setInvoices((prev) =>
+      prev.map((inv) =>
+        inv.confidence === 'high' && inv.status !== 'confirmed' ? { ...inv, status: 'confirmed' } : inv
+      )
+    );
   }
 
   function handleRefresh() {
     fetchInvoices();
   }
 
-  const highCount = invoices.filter((i) => i.confidence === 'high').length;
+  const highPendingCount = invoices.filter((inv) => inv.status !== 'confirmed' && inv.confidence === 'high').length;
 
   const addButton = (
     <button
@@ -616,40 +638,58 @@ export default function ConfirmationQueuePage() {
         {/* WhatsApp shortcut */}
         <WhatsAppCard />
 
+        {/* All confirmed → prompt to generate report */}
+        {invoices.length > 0 && highPendingCount === 0 && invoices.every(inv => inv.status === 'confirmed') && (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-btn bg-accent-primary/10 border border-accent-primary/25">
+            <p className="text-sm text-ink-primary">
+              All invoices confirmed for this month.
+            </p>
+            <Link
+              href={`/report/generate?month=${CURRENT_MONTH}`}
+              className="text-sm font-semibold text-accent-primary hover:underline shrink-0 flex items-center gap-1"
+            >
+              Generate report <ChevronRight size={13} />
+            </Link>
+          </div>
+        )}
+
+        {/* Batch confirm high-confidence */}
+        {highPendingCount > 0 && (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-btn bg-accent-secondary/10 border border-accent-secondary/25">
+            <p className="text-sm text-ink-primary">
+              <span className="font-semibold">{highPendingCount}</span> high-confidence invoice{highPendingCount !== 1 ? 's' : ''} ready to confirm
+            </p>
+            <button
+              onClick={confirmAllHigh}
+              className="text-sm font-semibold text-accent-secondary hover:underline shrink-0"
+            >
+              Confirm all
+            </button>
+          </div>
+        )}
+
         {invoices.length === 0 ? (
           <div className="card flex flex-col items-center justify-center gap-4 py-16 text-center">
             <CheckCircle size={48} className="text-accent-secondary" />
             <div>
               <p className="font-semibold text-ink-primary text-lg">{t('queue.empty')}</p>
-              <p className="text-sm text-ink-secondary mt-1">All invoices confirmed — great work.</p>
+              <p className="text-sm text-ink-secondary mt-1">No invoices submitted yet — tap + to add one.</p>
             </div>
             <Link href="/dashboard" className="btn-secondary text-sm">Back to dashboard</Link>
           </div>
         ) : (
-          <>
-            {highCount > 0 && (
-              <button
-                onClick={confirmAllHigh}
-                className="w-full flex items-center justify-center gap-2 bg-accent-secondary/10 hover:bg-accent-secondary/20 text-accent-secondary border border-accent-secondary/30 rounded-btn px-5 py-3 font-medium text-sm transition-colors"
-              >
-                <CheckCircle size={16} />
-                Confirm all high-confidence ({highCount})
-              </button>
-            )}
-
-            <AnimatePresence initial={false}>
-              {invoices.map((invoice) => (
-                <InvoiceCard
-                  key={invoice.id}
-                  invoice={invoice}
-                  isNew={invoice.id === newId}
-                  onConfirm={handleConfirm}
-                  onDelete={handleDelete}
-                  onEdit={handleEdit}
-                />
-              ))}
-            </AnimatePresence>
-          </>
+          <AnimatePresence initial={false}>
+            {invoices.map((invoice) => (
+              <InvoiceCard
+                key={invoice.id}
+                invoice={invoice}
+                isNew={invoice.id === newId}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                onConfirm={handleConfirm}
+              />
+            ))}
+          </AnimatePresence>
         )}
       </div>
 
@@ -669,9 +709,18 @@ export default function ConfirmationQueuePage() {
           <UploadSheet
             onClose={() => setSheetOpen(false)}
             onRefresh={handleRefresh}
+            month={CURRENT_MONTH}
           />
         )}
       </AnimatePresence>
     </main>
+  );
+}
+
+export default function ConfirmationQueuePage() {
+  return (
+    <Suspense>
+      <ConfirmationQueuePageInner />
+    </Suspense>
   );
 }

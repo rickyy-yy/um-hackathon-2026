@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronLeft, Share2 } from 'lucide-react';
+import { ChevronLeft, RefreshCw, AlertTriangle } from 'lucide-react';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { mockReportData } from '@/lib/mocks';
@@ -24,6 +24,7 @@ export default async function ReportPage({ params }: { params: { month: string }
 
   let reportData;
   let generatedAt = 'Demo data';
+  let isEmptyReport = false;
 
   if (dbReport) {
     const mv = typeof dbReport.monthView === 'string' ? JSON.parse(dbReport.monthView) : dbReport.monthView;
@@ -34,6 +35,7 @@ export default async function ReportPage({ params }: { params: { month: string }
       month: 'short',
       year: 'numeric',
     });
+    isEmptyReport = (mv?.summary?.totalRevenue ?? 0) === 0 && (mv?.summary?.totalExpenses ?? 0) === 0;
   } else {
     reportData = mockReportData(month);
     generatedAt = 'Demo data';
@@ -58,14 +60,38 @@ export default async function ReportPage({ params }: { params: { month: string }
               <p className="text-xs text-white/60 mt-0.5">{generatedAt}</p>
             </div>
           </div>
-          <button
-            aria-label="Share report"
+          <Link
+            href={`/report/generate?month=${month}`}
             className="p-2 rounded-btn bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+            aria-label="Regenerate report"
+            title="Regenerate report"
           >
-            <Share2 size={18} />
-          </button>
+            <RefreshCw size={18} />
+          </Link>
         </div>
       </header>
+
+      {isEmptyReport && (
+        <div className="bg-amber-50 border-b border-amber-200 px-5 py-3">
+          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-2 flex-1">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                This report was generated without data — all values are zero. Upload invoices and POS data for {monthLabel(month)}, then regenerate.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Link href={`/upload/past`} className="text-xs font-semibold text-amber-700 hover:underline whitespace-nowrap">
+                Upload data
+              </Link>
+              <span className="text-amber-400">·</span>
+              <Link href={`/report/generate?month=${month}`} className="text-xs font-semibold text-amber-700 hover:underline whitespace-nowrap">
+                Regenerate
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 lg:px-8 py-6">
         <ReportViewToggle

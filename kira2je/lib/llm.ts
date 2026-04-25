@@ -120,12 +120,46 @@ async function runTesseract(buf: Buffer): Promise<{ text: string; confidence: nu
   }
 }
 
+async function extractPdfText(pdfBase64: string): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+  const buf = Buffer.from(pdfBase64, 'base64');
+  const data = await pdfParse(buf);
+  if (!data.text?.trim()) throw new Error('PDF has no extractable text');
+  return data.text;
+}
+
 async function describeWithTesseract(imageBase64: string): Promise<{ text: string; confidence: number }> {
   const [orig, rot90] = await Promise.all([preprocessImage(imageBase64, 0), preprocessImage(imageBase64, 90)]);
   const [r0, r90] = await Promise.all([runTesseract(orig), runTesseract(rot90)]);
   const best = r0.confidence >= r90.confidence ? r0 : r90;
   console.warn(`[llm:tesseract] confidence: 0°=${r0.confidence.toFixed(0)}% 90°=${r90.confidence.toFixed(0)}% — using ${r0.confidence >= r90.confidence ? '0°' : '90°'}`);
   return best;
+}
+
+async function describeWithOpenAIVision(imageBase64: string, mimeType: string): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resp = await (getClient().chat.completions.create as any)({
+    model: process.env.LLM_MODEL || 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Describe all text, numbers, dates, supplier names, and line items visible in this invoice or receipt. Include every item description, quantity, unit, price, and total you can read.',
+          },
+          {
+            type: 'image_url',
+            image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: 'high' },
+          },
+        ],
+      },
+    ],
+  });
+  const text = resp.choices[0]?.message?.content;
+  if (!text) throw new Error('OpenAI vision returned empty response');
+  return text;
 }
 
 async function withRetry<T>(fn: () => Promise<T>, label: string, maxAttempts = 2): Promise<T> {
@@ -136,7 +170,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, maxAttempts = 2
     } catch (e: unknown) {
       lastErr = e;
       const status = (e as { status?: number })?.status;
-      const retryable = status === 429 || (typeof status === 'number' && status >= 500 && status < 600);
+      const retryable = typeof status === 'number' && status >= 500 && status < 600;
       if (!retryable || attempt === maxAttempts) {
         console.warn(`[llm:${label}] giving up after attempt ${attempt}:`, status ?? e);
         throw e;
@@ -215,13 +249,29 @@ async function callReal<T extends LlmTask>(args: T, locale: Locale): Promise<Llm
     case 'invoice-ocr': {
       let imageText: string;
       let tesseractConfidence: number | null = null;
-      try {
-        imageText = await describeWithGemini(args.imageBase64, args.mimeType);
-      } catch (err) {
-        console.warn('[llm:invoice-ocr] Gemini failed, falling back to tesseract:', (err as Error)?.message);
-        const tResult = await describeWithTesseract(args.imageBase64);
-        imageText = tResult.text;
-        tesseractConfidence = tResult.confidence;
+
+      if (args.mimeType === 'application/pdf') {
+        try {
+          imageText = await extractPdfText(args.imageBase64);
+          console.log('[llm:invoice-ocr] PDF text extracted directly');
+        } catch (pdfErr) {
+          throw new Error(`PDF text extraction failed: ${(pdfErr as Error)?.message}`);
+        }
+      } else {
+        try {
+          imageText = await describeWithGemini(args.imageBase64, args.mimeType);
+        } catch (geminiErr) {
+          console.warn('[llm:invoice-ocr] Gemini failed, trying OpenAI vision:', (geminiErr as Error)?.message);
+          try {
+            imageText = await describeWithOpenAIVision(args.imageBase64, args.mimeType);
+            console.log('[llm:invoice-ocr] OpenAI vision succeeded');
+          } catch (visionErr) {
+            console.warn('[llm:invoice-ocr] OpenAI vision failed, falling back to tesseract:', (visionErr as Error)?.message);
+            const tResult = await describeWithTesseract(args.imageBase64);
+            imageText = tResult.text;
+            tesseractConfidence = tResult.confidence;
+          }
+        }
       }
       const isNoisy = tesseractConfidence !== null && tesseractConfidence < 60;
       const raw = await chatJson<unknown>(

@@ -13,6 +13,52 @@ function fmt(n: number) {
 function fmtPct(n: number) { return `${n.toFixed(1)}%`; }
 function signedPct(n: number) { return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`; }
 
+// ─── Cost breakdown card ──────────────────────────────────────────────────────
+
+function CostBreakdownCard({ costBreakdown }: { costBreakdown: { category: string; amount: number; pctOfTotal: number }[] }) {
+  const [visible, setVisible] = useState(5);
+  const sorted = [...costBreakdown].sort((a, b) => b.amount - a.amount);
+  const shown = sorted.slice(0, visible);
+  const remaining = sorted.length - visible;
+
+  return (
+    <motion.div
+      className="card space-y-3"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.35, duration: 0.35 }}
+    >
+      <p className="section-label">Ingredient Cost Breakdown</p>
+      <div className="space-y-3">
+        {shown.map((cb, i) => (
+          <div key={cb.category}>
+            <div className="flex justify-between items-baseline mb-1.5">
+              <span className="text-sm text-ink-primary">{cb.category}</span>
+              <span className="text-xs text-ink-secondary number">RM {fmt(cb.amount)} · {cb.pctOfTotal}%</span>
+            </div>
+            <div className="bar-track">
+              <motion.div
+                className="bar-fill bg-accent-primary"
+                initial={{ width: 0 }}
+                animate={{ width: `${cb.pctOfTotal}%` }}
+                transition={{ delay: 0.4 + i * 0.07, duration: 0.6, ease: 'easeOut' }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      {remaining > 0 && (
+        <button
+          onClick={() => setVisible((v) => v + 5)}
+          className="text-xs text-accent-primary hover:underline w-full text-center pt-1"
+        >
+          Show {Math.min(remaining, 5)} more ({remaining} remaining)
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
 // ─── Profit waterfall chart ───────────────────────────────────────────────────
 
 function WaterfallChart({ items }: { items: WaterfallItem[] }) {
@@ -160,7 +206,7 @@ function MonthViewPanel({ data }: { data: MonthView }) {
         <div className="space-y-3">
           {topPerformers
             .slice()
-            .sort((a, b) => b.profit - a.profit)
+            .sort((a, b) => (b.profit ?? 0) - (a.profit ?? 0))
             .map((p, i) => (
               <motion.div
                 key={p.item}
@@ -172,12 +218,18 @@ function MonthViewPanel({ data }: { data: MonthView }) {
                   <span className="text-sm font-medium text-ink-primary">{p.item}</span>
                   <div className="flex items-center gap-3 text-xs number text-ink-secondary">
                     <span>RM {fmt(p.revenue)} rev</span>
-                    <span className={`font-semibold ${p.profit >= 0 ? 'positive' : 'negative'}`}>
-                      RM {fmt(p.profit)} profit
-                    </span>
-                    <span className={p.marginPct >= 30 ? 'text-accent-secondary font-semibold' : 'text-ink-secondary'}>
-                      {fmtPct(p.marginPct)}
-                    </span>
+                    {p.profit != null ? (
+                      <span className={`font-semibold ${p.profit >= 0 ? 'positive' : 'negative'}`}>
+                        RM {fmt(p.profit)} profit
+                      </span>
+                    ) : (
+                      <span className="text-ink-secondary">no cost data</span>
+                    )}
+                    {p.marginPct != null && (
+                      <span className={p.marginPct >= 30 ? 'text-accent-secondary font-semibold' : 'text-ink-secondary'}>
+                        {fmtPct(p.marginPct)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {p.profitContributionPct != null && (
@@ -202,32 +254,7 @@ function MonthViewPanel({ data }: { data: MonthView }) {
       </motion.div>
 
       {/* Cost breakdown */}
-      <motion.div
-        className="card space-y-3"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35, duration: 0.35 }}
-      >
-        <p className="section-label">Cost Breakdown</p>
-        <div className="space-y-3">
-          {costBreakdown.map((cb, i) => (
-            <div key={cb.category}>
-              <div className="flex justify-between items-baseline mb-1.5">
-                <span className="text-sm text-ink-primary">{cb.category}</span>
-                <span className="text-xs text-ink-secondary number">RM {fmt(cb.amount)} · {cb.pctOfTotal}%</span>
-              </div>
-              <div className="bar-track">
-                <motion.div
-                  className="bar-fill bg-accent-primary"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${cb.pctOfTotal}%` }}
-                  transition={{ delay: 0.4 + i * 0.07, duration: 0.6, ease: 'easeOut' }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+      <CostBreakdownCard costBreakdown={costBreakdown} />
 
       {/* Profit waterfall */}
       {profitWaterfall && profitWaterfall.length > 0 && (
@@ -269,12 +296,29 @@ function MonthViewPanel({ data }: { data: MonthView }) {
           </p>
           <div className="space-y-3">
             {atRiskItems.map((r) => (
-              <div key={r.item} className="flex items-start gap-2.5">
-                <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-ink-primary">{r.item}</p>
-                  <p className="text-xs text-ink-secondary leading-relaxed mt-0.5">{r.reason}</p>
+              <div key={r.item} className="space-y-1">
+                <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+                    <span className="text-sm font-semibold text-ink-primary truncate">{r.item}</span>
+                  </div>
+                  {r.revenue != null && (
+                    <div className="flex items-center gap-3 text-xs number text-ink-secondary shrink-0">
+                      <span>RM {fmt(r.revenue)} rev</span>
+                      {r.profit != null && (
+                        <span className={`font-semibold ${r.profit >= 0 ? 'positive' : 'negative'}`}>
+                          RM {fmt(r.profit)} profit
+                        </span>
+                      )}
+                      {r.marginPct != null && (
+                        <span className={r.marginPct < 20 ? 'text-danger font-semibold' : 'text-ink-secondary'}>
+                          {fmtPct(r.marginPct)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
+                <p className="text-xs text-ink-secondary leading-relaxed pl-5">{r.reason}</p>
               </div>
             ))}
           </div>

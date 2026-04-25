@@ -124,11 +124,31 @@ Return ONLY this JSON — no explanation:
   "summary": { "totalRevenue": number, "totalExpenses": number, "estimatedProfit": number, "marginPct": number },
   "topPerformers": [{ "item": string, "revenue": number, "estimatedCost": number, "profit": number, "marginPct": number }],
   "costBreakdown": [{ "category": string, "amount": number, "pctOfTotal": number }],
-  "atRiskItems": [{ "item": string, "reason": string }],
+  "atRiskItems": [{ "item": string, "reason": string, "revenue": number | null, "profit": number | null, "marginPct": number | null }],
   "recommendations": [{ "rank": number, "title": string, "description": string, "estimatedMonthlyImpactRm": number }]
 }
 
-Rules: exact RM amounts, actual item names, all text in ${lang}.`;
+Rules:
+- totalExpenses = sum of ALL confirmed invoice totals (ingredients AND non-ingredient costs)
+- costBreakdown = one entry per individual ingredient, sorted by amount descending; use the ingredient name as "category"; pctOfTotal = that ingredient's cost as % of totalExpenses; exclude non-ingredient costs entirely from this list
+- topPerformers and COGS allocation only apply to menu items with mapped ingredients; leave COGS null for unmapped items
+- exact RM amounts, actual item names, all text in ${lang}
+
+Recommendations must be SPECIFIC and ACTIONABLE — not generic advice. Each recommendation must:
+1. Name the exact menu item, ingredient, or supplier from the data (never say "a popular item" — say the actual name)
+2. Include real numbers calculated from the data: exact RM amounts, quantities sold, margins, percentages
+3. State a concrete action the operator can take THIS WEEK (raise price by RM X, call supplier Y, remove item Z, bundle A with B)
+4. Explain the "why" in one sentence using actual figures from the data
+5. Give a realistic estimatedMonthlyImpactRm based on actual volume × price/cost delta
+
+Good recommendation examples (follow this style):
+- "Raise [Item Name] by RM 1.50 — it's your #2 seller at [X] orders/month with a [Y]% margin. Customers at this price point are not sensitive to small increases; a RM 1.50 raise on [X] orders = RM [X×1.50] extra/month."
+- "Bundle [High-margin item] with [Popular item] at RM 1 off — your [item] margin is [Y]%. A bundled discount drives attachment without hurting profit: estimated +RM [Z]/month from higher ticket size."
+- "Negotiate [ingredient] price — you bought [Xkg] from [Supplier] this month at RM [Y]/kg. At this volume, wholesale rate of RM [Y-2]/kg is achievable. Saves RM [(Y-Y+2)×X]/month."
+- "Consider removing [Low-volume item] — only [N] orders this month, lowest in the menu. Ingredient [X] used only here costs RM [Y]/month in waste. Redirect prep time to [Top seller]."
+
+Write 3 recommendations ranked by impact. Be a blunt advisor — tell them what to do, not what to "consider".`;
+
 }
 
 export function reportTrendsViewPrompt(
@@ -153,8 +173,15 @@ Return ONLY this JSON — no explanation:
 }
 
 Rules:
-- If historical data is null or < 2 months, set monthsAnalysed = 1 and return empty arrays for time-series fields
+- monthsAnalysed = number of months with ANY data (invoice or sales), even non-consecutive
+- If only 1 data point total, return empty arrays for all time-series fields
+- Months with ONLY expenses (no revenue): include in marginOverTime with revenue=0 and in supplierPriceChanges — these months still show cost trends
+- Months with ONLY revenue (no expenses): include in marginOverTime with expenses=0 — still shows revenue movement
+- Gaps between months are fine — calculate trends across whatever data points exist; in descriptions say "over the X months we have data for" not "monthly"
+- revenueTrendPct and marginTrendPct: compare earliest vs latest available data point (not just last two months)
+- supplierPriceChanges: only fill if the same supplier/item appears in multiple months
 - Cannibalization only if 3+ months show correlated sales movement
+- Never use financial jargon — say "your costs have risen X%" not "CAGR" or "compound growth"
 - All text in ${lang}`;
 }
 

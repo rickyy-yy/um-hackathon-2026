@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle,
@@ -113,14 +113,16 @@ function MappingRow({
   menuOptions,
   onConfirm,
   onUpdateMenuItems,
+  autoEdit = false,
 }: {
   mapping: MappingProposal;
   confirmed: boolean;
   menuOptions: string[];
   onConfirm: () => void;
   onUpdateMenuItems: (items: string[]) => void;
+  autoEdit?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(autoEdit);
 
   return (
     <div className={`card transition-colors ${confirmed ? 'border-accent-secondary/40 bg-paper-50' : ''}`}>
@@ -216,6 +218,11 @@ export default function MappingPage() {
   const [mappings, setMappings] = useState<MappingProposal[]>([]);
   const [confirmed, setConfirmed] = useState<boolean[]>([]);
   const [overrides, setOverrides] = useState<Record<string, ItemOverride>>({});
+  const [autoEditIdx, setAutoEditIdx] = useState<number | null>(null);
+  const [matchedOver, setMatchedOver] = useState(false);
+  const [unmatchedOver, setUnmatchedOver] = useState(false);
+  const matchedEnterRef = useRef(0);
+  const unmatchedEnterRef = useRef(0);
 
   async function fetchMappings() {
     setLoading(true);
@@ -290,6 +297,27 @@ export default function MappingPage() {
     });
   }
 
+  function dropToMatched(ingredient: string) {
+    setMappings((prev) => {
+      const next = [...prev, { ingredient, menuItems: [], confidence: 'low' as const }];
+      setAutoEditIdx(next.length - 1);
+      return next;
+    });
+    setConfirmed((prev) => [...prev, false]);
+    setData((prev) => prev ? { ...prev, unmappedIngredients: prev.unmappedIngredients.filter((i) => i !== ingredient) } : prev);
+    matchedEnterRef.current = 0;
+    setMatchedOver(false);
+  }
+
+  function dropToUnmatched(ingredient: string, idx: number) {
+    setMappings((prev) => prev.filter((_, i) => i !== idx));
+    setConfirmed((prev) => prev.filter((_, i) => i !== idx));
+    setData((prev) => prev ? { ...prev, unmappedIngredients: [...prev.unmappedIngredients, ingredient] } : prev);
+    setAutoEditIdx(null);
+    unmatchedEnterRef.current = 0;
+    setUnmatchedOver(false);
+  }
+
   const confirmedCount = confirmed.filter(Boolean).length;
   const allConfirmed = mappings.length > 0 && confirmedCount === mappings.length;
 
@@ -354,9 +382,11 @@ export default function MappingPage() {
   }
 
   const menuOptions = data?.menuItems ?? [];
+  const mappedMenuItems = new Set(mappings.flatMap((m) => m.menuItems));
+  const unmappedMenuItems = (data?.unmappedMenuItems ?? []).filter((item) => !mappedMenuItems.has(item));
   const hasUnmatched =
     (data?.unmappedIngredients.length ?? 0) > 0 ||
-    (data?.unmappedMenuItems.length ?? 0) > 0;
+    unmappedMenuItems.length > 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-paper-100">
@@ -423,24 +453,48 @@ export default function MappingPage() {
             </div>
           )}
 
-          {/* Mapping rows */}
-          {mappings.length > 0 && (
-            <div className="space-y-3">
-              <p className="section-label">Matched ingredients ({mappings.length})</p>
-              {mappings.map((m, i) => (
+          {/* Matched ingredients — drop zone for unmatched pills */}
+          <div
+            className="space-y-3"
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={() => { matchedEnterRef.current++; setMatchedOver(true); }}
+            onDragLeave={() => { matchedEnterRef.current--; if (matchedEnterRef.current <= 0) setMatchedOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              try {
+                const { ingredient, source } = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (source === 'unmatched') dropToMatched(ingredient);
+              } catch { /* ignore drops from outside */ }
+            }}
+          >
+            <p className="section-label">Matched ingredients ({mappings.length})</p>
+
+            <div className={`rounded-card border-2 border-dashed transition-all duration-150 overflow-hidden ${matchedOver ? 'border-accent-primary bg-accent-primary/5 py-3 px-4' : 'border-transparent h-0 py-0'}`}>
+              {matchedOver && <p className="text-sm text-accent-primary text-center font-medium">Drop here to add to matched</p>}
+            </div>
+
+            {mappings.map((m, i) => (
+              <div
+                key={m.ingredient}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', JSON.stringify({ ingredient: m.ingredient, source: 'matched', idx: i }));
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+              >
                 <MappingRow
-                  key={m.ingredient}
                   mapping={m}
                   confirmed={confirmed[i] ?? false}
                   menuOptions={menuOptions}
                   onConfirm={() => toggleConfirm(i)}
                   onUpdateMenuItems={(items) => updateMenuItems(i, items)}
+                  autoEdit={autoEditIdx === i}
                 />
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
 
-          {/* Unmatched */}
+          {/* Unmatched — also a drop zone for matched cards being moved back */}
           {hasUnmatched && (
             <div className="space-y-3">
               <p className="section-label flex items-center gap-1.5">
@@ -448,25 +502,46 @@ export default function MappingPage() {
                 Unmatched
               </p>
               {(data?.unmappedIngredients.length ?? 0) > 0 && (
-                <div className="card">
-                  <p className="text-xs font-semibold text-ink-secondary mb-2">
+                <div
+                  className={`card transition-colors duration-150 ${unmatchedOver ? 'border-amber-400 bg-amber-50/60' : ''}`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDragEnter={() => { unmatchedEnterRef.current++; setUnmatchedOver(true); }}
+                  onDragLeave={() => { unmatchedEnterRef.current--; if (unmatchedEnterRef.current <= 0) setUnmatchedOver(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    try {
+                      const { ingredient, source, idx } = JSON.parse(e.dataTransfer.getData('text/plain'));
+                      if (source === 'matched') dropToUnmatched(ingredient, idx);
+                    } catch { /* ignore */ }
+                  }}
+                >
+                  <p className="text-xs font-semibold text-ink-secondary mb-1">
                     Ingredients without menu match
                   </p>
+                  <p className="text-xs text-ink-secondary mb-3">Drag to the matched list above to assign menu items. Drag a matched card here to unmatch it.</p>
                   <div className="flex flex-wrap gap-2">
                     {data!.unmappedIngredients.map((ing) => (
-                      <span key={ing} className="inline-flex items-center text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1">
+                      <span
+                        key={ing}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ ingredient: ing, source: 'unmatched' }));
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        className="inline-flex items-center text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1 cursor-grab active:cursor-grabbing select-none"
+                      >
                         {ing}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
-              {(data?.unmappedMenuItems.length ?? 0) > 0 && (
+              {unmappedMenuItems.length > 0 && (
                 <div className="card space-y-3">
                   <p className="text-xs font-semibold text-ink-secondary">
                     Menu items without ingredient data
                   </p>
-                  {data!.unmappedMenuItems.map((item) => {
+                  {unmappedMenuItems.map((item) => {
                     const ov = overrides[item];
                     return (
                       <div key={item} className="space-y-2">

@@ -13,15 +13,17 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
 
-  const { images } = (await req.json()) as {
+  const body = (await req.json()) as {
     images?: { name: string; base64: string; mimeType: string }[];
+    month?: string;
   };
+  const { images } = body;
   if (!images || images.length === 0) {
     return NextResponse.json({ ok: false, error: 'No images provided' }, { status: 400 });
   }
 
   const locale = await getLocale();
-  const month = currentMonth();
+  const month = body.month ?? currentMonth();
   let count = 0;
 
   for (const img of images) {

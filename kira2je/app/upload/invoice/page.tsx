@@ -1,10 +1,16 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Camera, Upload, MessageCircle, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { AppHeader } from '@/components/AppHeader';
+
+function getCurrentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 type FileEntry = {
   name: string;
@@ -28,7 +34,9 @@ function fileToEntry(file: File): Promise<FileEntry> {
   });
 }
 
-export default function InvoiceUploadPage() {
+function InvoiceUploadPageInner() {
+  const searchParams = useSearchParams();
+  const month = searchParams.get('month') ?? getCurrentMonth();
   const t = useT();
 
   const [tab, setTab] = useState<Tab>('upload');
@@ -39,7 +47,7 @@ export default function InvoiceUploadPage() {
   const [successCount, setSuccessCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const dropRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLLabelElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function addFiles(incoming: FileList | null) {
@@ -80,7 +88,7 @@ export default function InvoiceUploadPage() {
       const res = await fetch('/api/upload/invoice', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ files }),
+        body: JSON.stringify({ files, month }),
       });
       const json = await res.json();
       if (!json.ok) {
@@ -117,12 +125,14 @@ export default function InvoiceUploadPage() {
             <p className="text-ink-primary font-medium text-lg">
               {t('invoice.success', { n: successCount, s: plural(successCount) })}
             </p>
-            <Link
-              href="/invoices"
-              className="btn-primary inline-block mt-2"
-            >
-              View confirmation queue
-            </Link>
+            <div className="flex flex-col gap-2 w-full mt-2">
+              <Link href={`/invoices?month=${month}`} className="btn-primary w-full text-center">
+                Confirm invoices
+              </Link>
+              <Link href={`/report/generate?month=${month}`} className="btn-secondary w-full text-center text-sm">
+                Skip to generate report
+              </Link>
+            </div>
           </div>
         </div>
       </main>
@@ -175,12 +185,11 @@ export default function InvoiceUploadPage() {
         {tab === 'upload' && (
           <div className="space-y-4">
             {/* Drop zone */}
-            <div
+            <label
               ref={dropRef}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onClick={() => fileInputRef.current?.click()}
               className={`card flex flex-col items-center justify-center gap-3 cursor-pointer min-h-[180px] transition-colors ${
                 dragging ? 'bg-accent-primary/5 border-accent-primary' : 'hover:bg-paper-100'
               }`}
@@ -190,7 +199,7 @@ export default function InvoiceUploadPage() {
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
                 multiple
-                className="hidden"
+                className="sr-only"
                 onChange={(e) => addFiles(e.target.files)}
               />
               <Upload size={36} className={dragging ? 'text-accent-primary' : 'text-ink-secondary'} />
@@ -198,7 +207,7 @@ export default function InvoiceUploadPage() {
                 <p className="font-medium text-ink-primary">{t('invoice.dropzone')}</p>
                 <p className="text-xs text-ink-secondary mt-1">{t('invoice.dropzoneHint')}</p>
               </div>
-            </div>
+            </label>
 
             {/* File list */}
             {files.length > 0 && (
@@ -299,5 +308,13 @@ export default function InvoiceUploadPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function InvoiceUploadPage() {
+  return (
+    <Suspense>
+      <InvoiceUploadPageInner />
+    </Suspense>
   );
 }

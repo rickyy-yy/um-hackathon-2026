@@ -60,9 +60,9 @@ export type IngredientMappingResult = z.infer<typeof IngredientMappingResult>;
 export const TopPerformer = z.object({
   item: z.string(),
   revenue: z.number(),
-  estimatedCost: z.number(),
-  profit: z.number(),
-  marginPct: z.number(),
+  estimatedCost: z.number().nullable(),
+  profit: z.number().nullable(),
+  marginPct: z.number().nullable(),
   profitContributionPct: z.number().optional(),
 });
 
@@ -75,6 +75,9 @@ export const CostBreakdown = z.object({
 export const AtRiskItem = z.object({
   item: z.string(),
   reason: z.string(),
+  revenue: z.number().nullable().optional(),
+  profit: z.number().nullable().optional(),
+  marginPct: z.number().nullable().optional(),
 });
 
 export const WaterfallItem = z.object({

@@ -20,14 +20,15 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
 
-  const body = (await req.json()) as { files: FilePayload[] };
+  const body = (await req.json()) as { files: FilePayload[]; month?: string };
   const files = body.files;
   if (!files || files.length === 0) {
     return NextResponse.json({ ok: false, error: 'No files provided' }, { status: 400 });
   }
 
-  const month = currentMonth();
+  const month = body.month ?? currentMonth();
   let created = 0;
+  let lastError: string | null = null;
 
   for (const file of files) {
     try {
@@ -52,9 +53,17 @@ export async function POST(req: Request) {
 
       created++;
     } catch (err) {
-      console.error('[invoice-upload] OCR or DB error for file', file.name, err);
-      // Continue processing remaining files — partial success is still useful
+      lastError = (err as Error)?.message ?? 'Unknown error';
+      console.error('[invoice-upload] OCR or DB error for file', file.name, lastError);
     }
+  }
+
+  if (created === 0) {
+    const isApiKey = lastError?.includes('API key') || lastError?.includes('leaked') || lastError?.includes('PERMISSION_DENIED');
+    const userMsg = isApiKey
+      ? 'OCR failed: API key issue. Please contact support.'
+      : `Could not read ${files.length > 1 ? 'any of the' : 'the'} invoice${files.length > 1 ? 's' : ''}. Try a clearer photo or PDF.`;
+    return NextResponse.json({ ok: false, error: userMsg }, { status: 422 });
   }
 
   return NextResponse.json({ ok: true, count: created });

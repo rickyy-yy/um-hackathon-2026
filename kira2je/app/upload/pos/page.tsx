@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Upload,
@@ -15,10 +16,13 @@ import {
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { AppHeader } from '@/components/AppHeader';
+import { LoadingDots } from '@/components/LoadingDots';
 import type { PosColumnMapping } from '@/lib/schemas';
 
-const CURRENT_MONTH = '2026-04';
-const MONTH_LABEL = 'April 2026';
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,6 +45,7 @@ type Stage =
   | { kind: 'detecting'; fileName: string; base64: string }
   | {
       kind: 'confirming';
+      files: File[];
       fileName: string;
       base64: string;
       headers: string[];
@@ -50,8 +55,8 @@ type Stage =
       detectedMonths: string[];
       llmError: string | null;
     }
-  | { kind: 'importing' }
-  | { kind: 'done'; rowCount: number; savedMonths: string[] };
+  | { kind: 'importing'; progress: number; total: number }
+  | { kind: 'done'; rowCount: number; savedMonths: string[]; fileCount: number };
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
@@ -348,7 +353,11 @@ function ExistingUploads({ refresh }: { refresh: number }) {
   );
 }
 
-export default function PosUploadPage() {
+function PosUploadPageInner() {
+  const searchParams = useSearchParams();
+  const CURRENT_MONTH = searchParams.get('month') ?? getCurrentMonth();
+  const MONTH_LABEL = formatMonth(CURRENT_MONTH);
+
   const t = useT();
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [dragging, setDragging] = useState(false);
@@ -359,27 +368,29 @@ export default function PosUploadPage() {
   // Local copy of mapping that the user can edit in the confirming stage
   const [editMapping, setEditMapping] = useState<PosColumnMapping | null>(null);
 
-  async function handleFile(file: File) {
+  async function handleFiles(files: File[]) {
+    if (files.length === 0) return;
+    const first = files[0];
     setApiError(null);
     setEditMapping(null);
-    setStage({ kind: 'reading', fileName: file.name });
+    setStage({ kind: 'reading', fileName: first.name });
 
     let base64: string;
     try {
-      base64 = await fileToBase64(file);
+      base64 = await fileToBase64(first);
     } catch {
       setApiError('Could not read file.');
       setStage({ kind: 'idle' });
       return;
     }
 
-    setStage({ kind: 'detecting', fileName: file.name, base64 });
+    setStage({ kind: 'detecting', fileName: first.name, base64 });
 
     try {
       const res = await fetch('/api/upload/pos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, base64, dryRun: true }),
+        body: JSON.stringify({ fileName: first.name, base64, dryRun: true }),
       });
       const data = await res.json();
 
@@ -393,7 +404,8 @@ export default function PosUploadPage() {
       setEditMapping(mapping);
       setStage({
         kind: 'confirming',
-        fileName: file.name,
+        files,
+        fileName: first.name,
         base64,
         headers: data.headers as string[],
         mapping,
@@ -411,8 +423,10 @@ export default function PosUploadPage() {
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) await handleFile(file);
+    const dropped = Array.from(e.dataTransfer.files ?? []).filter((f) =>
+      /\.(xlsx|xls|csv)$/i.test(f.name)
+    );
+    if (dropped.length) await handleFiles(dropped);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -421,59 +435,52 @@ export default function PosUploadPage() {
 
   async function handleImport() {
     if (stage.kind !== 'confirming') return;
-    const { fileName, base64, totalRows, detectedMonths } = stage;
+    const { files, fileName, base64, totalRows, detectedMonths } = stage;
     const confirmedMapping = editMapping ?? stage.mapping;
 
-    setStage({ kind: 'importing' });
+    setStage({ kind: 'importing', progress: 0, total: files.length });
     setApiError(null);
 
-    try {
-      const res = await fetch('/api/upload/pos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName,
-          base64,
-          month: CURRENT_MONTH,
-          dryRun: false,
-          confirmedMapping,
-        }),
-      });
-      const data = await res.json();
+    let totalRowCount = 0;
+    const allSavedMonths = new Set<string>();
 
-      if (!res.ok || !data.ok) {
-        setApiError(data.error ?? 'Import failed. Please try again.');
-        // Restore confirming stage
-        setStage({
-          kind: 'confirming',
-          fileName,
-          base64,
-          headers: stage.headers,
-          mapping: stage.mapping,
-          previewRows: stage.previewRows,
-          totalRows,
-          detectedMonths,
-          llmError: stage.llmError,
-        });
+    for (let i = 0; i < files.length; i++) {
+      setStage({ kind: 'importing', progress: i, total: files.length });
+      const file = files[i];
+      let fileBase64: string;
+      try {
+        fileBase64 = i === 0 ? base64 : await fileToBase64(file);
+      } catch {
+        setApiError(`Could not read ${file.name}.`);
+        setStage({ kind: 'confirming', files, fileName, base64, headers: stage.headers, mapping: stage.mapping, previewRows: stage.previewRows, totalRows, detectedMonths, llmError: stage.llmError });
         return;
       }
 
-      setStage({ kind: 'done', rowCount: data.rowCount, savedMonths: data.savedMonths ?? [] });
-      setUploadRefresh((n) => n + 1);
-    } catch {
-      setApiError('Network error. Please try again.');
-      setStage({
-        kind: 'confirming',
-        fileName,
-        base64,
-        headers: stage.headers,
-        mapping: stage.mapping,
-        previewRows: stage.previewRows,
-        totalRows,
-        detectedMonths,
-        llmError: stage.llmError,
-      });
+      try {
+        const res = await fetch('/api/upload/pos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, base64: fileBase64, month: CURRENT_MONTH, dryRun: false, confirmedMapping }),
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          setApiError(`${file.name}: ${data.error ?? 'Import failed.'}`);
+          setStage({ kind: 'confirming', files, fileName, base64, headers: stage.headers, mapping: stage.mapping, previewRows: stage.previewRows, totalRows, detectedMonths, llmError: stage.llmError });
+          return;
+        }
+
+        totalRowCount += data.rowCount as number;
+        for (const m of (data.savedMonths ?? []) as string[]) allSavedMonths.add(m);
+      } catch {
+        setApiError('Network error. Please try again.');
+        setStage({ kind: 'confirming', files, fileName, base64, headers: stage.headers, mapping: stage.mapping, previewRows: stage.previewRows, totalRows, detectedMonths, llmError: stage.llmError });
+        return;
+      }
     }
+
+    setStage({ kind: 'done', rowCount: totalRowCount, savedMonths: [...allSavedMonths].sort().reverse(), fileCount: files.length });
+    setUploadRefresh((n) => n + 1);
   }
 
   // ── Success screen ──────────────────────────────────────────────────────────
@@ -487,16 +494,13 @@ export default function PosUploadPage() {
             <p className="text-ink-primary font-medium text-lg">
               {stage.rowCount.toLocaleString()} rows imported
             </p>
-            {stage.savedMonths.length > 1 ? (
-              <p className="text-sm text-ink-secondary">
-                {stage.savedMonths.length} months: {stage.savedMonths.map(formatMonth).join(', ')}
-              </p>
-            ) : (
-              <p className="text-sm text-ink-secondary">
-                {stage.savedMonths.length === 1 ? formatMonth(stage.savedMonths[0]) : MONTH_LABEL}
-              </p>
-            )}
-            <div className="flex gap-3 mt-2 flex-wrap">
+            <p className="text-sm text-ink-secondary">
+              {stage.fileCount > 1 ? `${stage.fileCount} files · ` : ''}
+              {stage.savedMonths.length > 1
+                ? `${stage.savedMonths.length} months: ${stage.savedMonths.map(formatMonth).join(', ')}`
+                : stage.savedMonths.length === 1 ? formatMonth(stage.savedMonths[0]) : MONTH_LABEL}
+            </p>
+            <div className="flex gap-3 mt-2 flex-wrap justify-center">
               <Link href="/mapping" className="btn-primary inline-block">
                 Review ingredient mapping
               </Link>
@@ -504,7 +508,7 @@ export default function PosUploadPage() {
                 onClick={() => setStage({ kind: 'idle' })}
                 className="btn-secondary inline-block"
               >
-                Upload another file
+                Upload more files
               </button>
             </div>
           </div>
@@ -558,13 +562,14 @@ export default function PosUploadPage() {
                 ref={fileInputRef}
                 type="file"
                 accept=".xlsx,.xls,.csv"
+                multiple
                 className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+                onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) handleFiles(fs); }}
               />
               <Upload size={36} className={dragging ? 'text-accent-primary' : 'text-ink-secondary'} />
               <div className="text-center">
-                <p className="font-medium text-ink-primary">{t('pos.dropzone')}</p>
-                <p className="text-xs text-ink-secondary mt-1">XLSX, XLS, CSV — AI detects columns automatically</p>
+                <p className="font-medium text-ink-primary">Drop files or click to browse</p>
+                <p className="text-xs text-ink-secondary mt-1">XLSX, XLS, CSV · multiple files OK — columns detected from first file</p>
               </div>
             </div>
 
@@ -596,7 +601,12 @@ export default function PosUploadPage() {
           <div className="card flex items-center gap-4 py-6 px-5">
             <Loader2 className="w-6 h-6 animate-spin text-accent-primary shrink-0" />
             <div>
-              <p className="font-medium text-ink-primary">Importing…</p>
+              <p className="font-medium text-ink-primary flex items-center gap-1.5">
+                {stage.total > 1
+                  ? `Importing file ${stage.progress + 1} of ${stage.total}`
+                  : 'Importing'}
+                <LoadingDots />
+              </p>
               <p className="text-xs text-ink-secondary mt-0.5">Saving rows to your account</p>
             </div>
           </div>
@@ -627,6 +637,21 @@ export default function PosUploadPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Additional queued files */}
+            {confirming.files.length > 1 && (
+              <div className="card-muted space-y-1.5 py-3 px-4">
+                <p className="text-xs font-semibold text-ink-secondary uppercase tracking-wide">
+                  {confirming.files.length} files queued · same column mapping applied to all
+                </p>
+                {confirming.files.slice(1).map((f) => (
+                  <div key={f.name} className="flex items-center gap-2 text-xs text-ink-secondary">
+                    <CheckCircle size={12} className="text-accent-secondary shrink-0" />
+                    <span className="truncate">{f.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* LLM error banner */}
             {confirming.llmError && (
@@ -672,8 +697,9 @@ export default function PosUploadPage() {
               ref={fileInputRef}
               type="file"
               accept=".xlsx,.xls,.csv"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) handleFiles(fs); }}
             />
           </>
         )}
@@ -706,12 +732,20 @@ export default function PosUploadPage() {
             <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Importing…
+                Importing<LoadingDots className="text-white" />
               </span>
             </button>
           ) : null}
         </div>
       </div>
     </main>
+  );
+}
+
+export default function PosUploadPage() {
+  return (
+    <Suspense>
+      <PosUploadPageInner />
+    </Suspense>
   );
 }

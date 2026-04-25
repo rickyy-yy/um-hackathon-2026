@@ -20,6 +20,7 @@
   "dependencies": {
     "@google/genai": "^1.50.1",
     "@prisma/client": "^5.22.0",
+    "@types/pdf-parse": "^1.1.5",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "jimp": "^1.6.1",
@@ -27,6 +28,7 @@
     "next": "14.2.18",
     "openai": "^4.73.0",
     "papaparse": "^5.4.1",
+    "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sonner": "^2.0.7",

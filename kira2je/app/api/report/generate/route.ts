@@ -7,6 +7,29 @@ import type { InvoiceLineItem } from '@/lib/schemas';
 
 export const maxDuration = 120;
 
+export async function GET(req: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ ok: false }, { status: 401 });
+  const { searchParams } = new URL(req.url);
+  const month = searchParams.get('month');
+  if (!month) return NextResponse.json({ ok: false, error: 'month required' }, { status: 400 });
+
+  const [invoiceCount, posUpload, mappingCount] = await Promise.all([
+    prisma.invoice.count({ where: { userId: session.userId, month, status: 'confirmed' } }),
+    prisma.posUpload.findUnique({ where: { userId_month: { userId: session.userId, month } }, select: { rowCount: true, fileName: true } }),
+    prisma.ingredientMapping.count({ where: { userId: session.userId } }),
+  ]);
+
+  return NextResponse.json({
+    ok: true,
+    invoiceCount,
+    posRows: posUpload?.rowCount ?? 0,
+    posFileName: posUpload?.fileName ?? null,
+    mappingCount,
+    hasData: invoiceCount > 0 || (posUpload?.rowCount ?? 0) > 0,
+  });
+}
+
 type LineItem = InvoiceLineItem;
 
 function parseJson<T>(raw: unknown, fallback: T): T {
@@ -45,6 +68,14 @@ export async function POST(req: Request) {
       where: { userId_month: { userId: session.userId, month } },
     });
     const salesData = posUpload ? parseJson<unknown[]>(posUpload.parsedData, []) : [];
+
+    // Guard: need at least invoices OR POS data
+    if (invoiceRows.length === 0 && salesData.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: `No data found for ${month}. Upload at least one invoice or POS export before generating a report.` },
+        { status: 400 }
+      );
+    }
 
     // 3. Ingredient mappings + menu item overrides
     const [mappingRows, overrideRows] = await Promise.all([
