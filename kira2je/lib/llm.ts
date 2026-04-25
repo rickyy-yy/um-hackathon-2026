@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { GoogleGenAI } from '@google/genai';
 import { createWorker } from 'tesseract.js';
 import {
   InvoiceOcrResult,
@@ -65,39 +64,6 @@ function getClient(): OpenAI {
   return client;
 }
 
-async function callGeminiModel(model: string, imageBase64: string, mimeType: string): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-  const response = await ai.models.generateContent({
-    model,
-    contents: [
-      {
-        parts: [
-          { text: 'Describe all text, numbers, dates, supplier names, and line items visible in this invoice or receipt. Be specific — include every item description, quantity, unit, price, and total you can read.' },
-          { inlineData: { mimeType, data: imageBase64 } },
-        ],
-      },
-    ],
-  });
-  const text = response.text;
-  if (!text) throw new Error('Gemini returned empty response');
-  return text;
-}
-
-async function describeWithGemini(imageBase64: string, mimeType: string): Promise<string> {
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const fallbackModels = primaryModel === 'gemini-2.5-flash' ? ['gemini-2.5-flash-lite'] : [];
-  try {
-    return await withRetry(() => callGeminiModel(primaryModel, imageBase64, mimeType), `gemini-${primaryModel}`, 3);
-  } catch (primaryErr) {
-    for (const fallback of fallbackModels) {
-      console.warn(`[llm:ocr-gemini] primary failed, trying ${fallback}:`, (primaryErr as Error)?.message);
-      try {
-        return await withRetry(() => callGeminiModel(fallback, imageBase64, mimeType), `gemini-${fallback}`, 2);
-      } catch { /* try next */ }
-    }
-    throw primaryErr;
-  }
-}
 
 async function preprocessImage(imageBase64: string, rotateDeg: number): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -137,30 +103,6 @@ async function describeWithTesseract(imageBase64: string): Promise<{ text: strin
   return best;
 }
 
-async function describeWithOpenAIVision(imageBase64: string, mimeType: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const resp = await (getClient().chat.completions.create as any)({
-    model: process.env.LLM_MODEL || 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: 'Describe all text, numbers, dates, supplier names, and line items visible in this invoice or receipt. Include every item description, quantity, unit, price, and total you can read.',
-          },
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: 'high' },
-          },
-        ],
-      },
-    ],
-  });
-  const text = resp.choices[0]?.message?.content;
-  if (!text) throw new Error('OpenAI vision returned empty response');
-  return text;
-}
 
 async function withRetry<T>(fn: () => Promise<T>, label: string, maxAttempts = 2): Promise<T> {
   let lastErr: unknown;
@@ -258,20 +200,9 @@ async function callReal<T extends LlmTask>(args: T, locale: Locale): Promise<Llm
           throw new Error(`PDF text extraction failed: ${(pdfErr as Error)?.message}`);
         }
       } else {
-        try {
-          imageText = await describeWithGemini(args.imageBase64, args.mimeType);
-        } catch (geminiErr) {
-          console.warn('[llm:invoice-ocr] Gemini failed, trying OpenAI vision:', (geminiErr as Error)?.message);
-          try {
-            imageText = await describeWithOpenAIVision(args.imageBase64, args.mimeType);
-            console.log('[llm:invoice-ocr] OpenAI vision succeeded');
-          } catch (visionErr) {
-            console.warn('[llm:invoice-ocr] OpenAI vision failed, falling back to tesseract:', (visionErr as Error)?.message);
-            const tResult = await describeWithTesseract(args.imageBase64);
-            imageText = tResult.text;
-            tesseractConfidence = tResult.confidence;
-          }
-        }
+        const tResult = await describeWithTesseract(args.imageBase64);
+        imageText = tResult.text;
+        tesseractConfidence = tResult.confidence;
       }
       const isNoisy = tesseractConfidence !== null && tesseractConfidence < 60;
       const raw = await chatJson<unknown>(
