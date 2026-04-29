@@ -554,7 +554,7 @@ function ConfirmationQueuePageInner() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [CURRENT_MONTH]);
 
   useEffect(() => {
     fetchInvoices();

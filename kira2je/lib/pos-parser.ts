@@ -1,6 +1,9 @@
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { SalesRow, PosColumnMapping } from './schemas';
+import { assertBase64Payload, fileExtension } from './uploads';
+
+const MAX_POS_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,8 +42,9 @@ export function excelDateToIso(v: unknown): string | undefined {
 // ─── Raw row extraction ───────────────────────────────────────────────────────
 
 export async function extractRawRows(base64: string, fileName: string): Promise<Record<string, unknown>[]> {
-  const buffer = Buffer.from(base64, 'base64');
-  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  const cleanBase64 = assertBase64Payload(base64, MAX_POS_UPLOAD_BYTES, 'POS file');
+  const buffer = Buffer.from(cleanBase64, 'base64');
+  const ext = fileExtension(fileName);
 
   if (ext === 'csv') {
     const text = buffer.toString('utf-8');
@@ -50,10 +54,8 @@ export async function extractRawRows(base64: string, fileName: string): Promise<
       dynamicTyping: true,
     });
     return result.data;
-  } else if (ext === 'xlsx' || ext === 'xls') {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  } else if (ext === 'xlsx') {
+    return parseXlsxRows(buffer);
   }
   return [];
 }
@@ -67,8 +69,9 @@ export async function parsePosFile(base64: string, fileName: string): Promise<{
   previewRows: Record<string, unknown>[];
   totalRows: number;
 }> {
-  const buffer = Buffer.from(base64, 'base64');
-  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  const cleanBase64 = assertBase64Payload(base64, MAX_POS_UPLOAD_BYTES, 'POS file');
+  const buffer = Buffer.from(cleanBase64, 'base64');
+  const ext = fileExtension(fileName);
 
   let rawRows: Record<string, unknown>[] = [];
 
@@ -80,10 +83,8 @@ export async function parsePosFile(base64: string, fileName: string): Promise<{
       dynamicTyping: true,
     });
     rawRows = result.data;
-  } else if (ext === 'xlsx' || ext === 'xls') {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  } else if (ext === 'xlsx') {
+    rawRows = await parseXlsxRows(buffer);
   } else {
     return {
       ok: false,
@@ -111,6 +112,48 @@ export async function parsePosFile(base64: string, fileName: string): Promise<{
     previewRows: rawRows.slice(0, 5),
     totalRows: rawRows.length,
   };
+}
+
+async function parseXlsxRows(buffer: Buffer): Promise<Record<string, unknown>[]> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return [];
+
+  const headerRow = sheet.getRow(1);
+  const headerValues = Array.isArray(headerRow.values) ? headerRow.values.slice(1) : [];
+  const headers = headerValues
+    .map((value: unknown) => str(value))
+    .map((header: string, index: number) => header || `Column ${index + 1}`);
+
+  const rows: Record<string, unknown>[] = [];
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const record: Record<string, unknown> = {};
+    let hasValue = false;
+
+    for (let i = 0; i < headers.length; i++) {
+      const value = normalizeExcelCell(row.getCell(i + 1).value);
+      record[headers[i]] = value;
+      if (value !== '') hasValue = true;
+    }
+
+    if (hasValue) rows.push(record);
+  });
+
+  return rows;
+}
+
+function normalizeExcelCell(value: ExcelJS.CellValue): unknown {
+  if (value == null) return '';
+  if (value instanceof Date) return value;
+  if (typeof value === 'object') {
+    if ('result' in value) return normalizeExcelCell(value.result as ExcelJS.CellValue);
+    if ('text' in value && typeof value.text === 'string') return value.text;
+    if ('richText' in value) return value.richText.map((part) => part.text).join('');
+    return String(value);
+  }
+  return value;
 }
 
 // ─── Month grouping ───────────────────────────────────────────────────────────

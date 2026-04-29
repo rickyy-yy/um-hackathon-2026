@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { llm } from '@/lib/llm';
+import { assertBase64Payload, validateMonth } from '@/lib/uploads';
+
+const MAX_INVOICE_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 10;
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 
 type FilePayload = {
   name: string;
@@ -25,16 +30,26 @@ export async function POST(req: Request) {
   if (!files || files.length === 0) {
     return NextResponse.json({ ok: false, error: 'No files provided' }, { status: 400 });
   }
+  if (files.length > MAX_FILES) {
+    return NextResponse.json({ ok: false, error: `Upload up to ${MAX_FILES} files at a time` }, { status: 400 });
+  }
 
-  const month = body.month ?? currentMonth();
+  const month = validateMonth(body.month) ?? currentMonth();
+  if (body.month && !validateMonth(body.month)) {
+    return NextResponse.json({ ok: false, error: 'month must use YYYY-MM format' }, { status: 400 });
+  }
   let created = 0;
   let lastError: string | null = null;
 
   for (const file of files) {
     try {
+      if (!ALLOWED_MIME_TYPES.has(file.mimeType)) {
+        throw new Error('Unsupported invoice file type');
+      }
+      const imageBase64 = assertBase64Payload(file.base64, MAX_INVOICE_BYTES, file.name || 'Invoice file');
       const ocr = await llm({
         task: 'invoice-ocr',
-        imageBase64: file.base64,
+        imageBase64,
         mimeType: file.mimeType,
       });
 

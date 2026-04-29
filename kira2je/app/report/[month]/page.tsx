@@ -12,11 +12,11 @@ function monthLabel(slug: string): string {
   return date.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
 }
 
-export default async function ReportPage({ params }: { params: { month: string } }) {
+export default async function ReportPage({ params }: { params: Promise<{ month: string }> }) {
   const session = await getSession();
   if (!session) redirect('/');
 
-  const { month } = params;
+  const { month } = await params;
 
   const dbReport = await prisma.report.findUnique({
     where: { userId_month: { userId: session.userId, month } },

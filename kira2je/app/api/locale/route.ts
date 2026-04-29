@@ -7,7 +7,8 @@ export async function POST(req: Request) {
   if (locale !== 'ms' && locale !== 'en') {
     return NextResponse.json({ ok: false, error: 'Invalid locale' }, { status: 400 });
   }
-  cookies().set(LOCALE_COOKIE, locale, {
+  const cookieStore = await cookies();
+  cookieStore.set(LOCALE_COOKIE, locale, {
     httpOnly: false, // readable by client JS so the toggle can render current state
     sameSite: 'lax',
     path: '/',

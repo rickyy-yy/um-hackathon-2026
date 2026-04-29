@@ -66,7 +66,6 @@ function getClient(): OpenAI {
 
 
 async function preprocessImage(imageBase64: string, rotateDeg: number): Promise<Buffer> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Jimp } = require('jimp');
   const raw = Buffer.from(imageBase64, 'base64');
   const img = await Jimp.fromBuffer(raw);
@@ -87,7 +86,6 @@ async function runTesseract(buf: Buffer): Promise<{ text: string; confidence: nu
 }
 
 async function extractPdfText(pdfBase64: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfParse = require('pdf-parse/lib/pdf-parse.js');
   const buf = Buffer.from(pdfBase64, 'base64');
   const data = await pdfParse(buf);

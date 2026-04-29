@@ -4,12 +4,13 @@ import { prisma } from '@/lib/db';
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({ where: { id: params.id } });
+  const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.userId !== session.userId) {
     return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
   }
@@ -23,7 +24,7 @@ export async function PATCH(
   };
 
   await prisma.invoice.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...(body.supplierName !== undefined && { supplierName: body.supplierName }),
       ...(body.invoiceDate !== undefined && {
@@ -44,18 +45,19 @@ export async function PATCH(
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({ where: { id: params.id } });
+  const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.userId !== session.userId) {
     return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
   }
 
   await prisma.invoice.update({
-    where: { id: params.id },
+    where: { id },
     data: { status: 'confirmed' },
   });
 
@@ -64,17 +66,18 @@ export async function POST(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({ where: { id: params.id } });
+  const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.userId !== session.userId) {
     return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
   }
 
-  await prisma.invoice.delete({ where: { id: params.id } });
+  await prisma.invoice.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });
 }

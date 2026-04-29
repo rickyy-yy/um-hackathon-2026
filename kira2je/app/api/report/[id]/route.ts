@@ -3,11 +3,12 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { mockReportData } from '@/lib/mocks';
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
 
-  const report = await prisma.report.findUnique({ where: { id: params.id } });
+  const report = await prisma.report.findUnique({ where: { id } });
   if (!report || report.userId !== session.userId) {
     // Demo fallback
     const mock = mockReportData('2026-04');

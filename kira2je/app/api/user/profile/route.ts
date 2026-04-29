@@ -35,7 +35,8 @@ export async function POST(req: Request) {
   });
 
   const locale = language === 'bm' ? 'bm' : 'en';
-  cookies().set('kira2je_locale', locale, {
+  const cookieStore = await cookies();
+  cookieStore.set('kira2je_locale', locale, {
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
     httpOnly: false,

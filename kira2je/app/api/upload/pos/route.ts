@@ -12,6 +12,9 @@ import {
 import { llm } from '@/lib/llm';
 import { PosColumnMapping } from '@/lib/schemas';
 import type { PosColumnMapping as PosColumnMappingType } from '@/lib/schemas';
+import { assertBase64Payload, validateMonth } from '@/lib/uploads';
+
+const MAX_POS_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export async function GET() {
   const session = await getSession();
@@ -52,9 +55,18 @@ export async function POST(req: Request) {
     confirmedMapping?: PosColumnMappingType;
   };
 
-  const { fileName, base64, month: fallbackMonth = '2026-04', dryRun = false, confirmedMapping } = body;
+  const fallbackMonth = validateMonth(body.month) ?? '2026-04';
+  const { fileName, base64, dryRun = false, confirmedMapping } = body;
   if (!fileName || !base64) {
     return NextResponse.json({ ok: false, error: 'fileName and base64 are required' }, { status: 400 });
+  }
+  try {
+    assertBase64Payload(base64, MAX_POS_UPLOAD_BYTES, 'POS file');
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 413 });
+  }
+  if (body.month && !validateMonth(body.month)) {
+    return NextResponse.json({ ok: false, error: 'month must use YYYY-MM format' }, { status: 400 });
   }
 
   // ── Dry run: parse headers + preview, call LLM for column mapping ────────────
